@@ -13,7 +13,6 @@ load_dotenv(BASE_DIR / '.env')
 ALLOWED_HOSTS = []
 
 # Application definition
-# Using direct app names as the 'apps' directory will be added to the Python path.
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -27,11 +26,11 @@ INSTALLED_APPS = [
     'django_apscheduler',
 
     # Local Apps
-    'core',
-    'securities',
-    'mutual_funds',
-    'analysis',
-    'users',
+    'apps.core',
+    'apps.securities',
+    'apps.mutual_funds',
+    'apps.analysis',
+    'apps.users',
 ]
 
 MIDDLEWARE = [

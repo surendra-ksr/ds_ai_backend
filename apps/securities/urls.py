@@ -1,15 +1,9 @@
-from django.urls import path, include
-from rest_framework.routers import DefaultRouter
-from .views import SecurityViewSet, SecurityDetailView, SecurityListView
+# apps/securities/urls.py
+from django.urls import path
+from apps.securities.views import SecurityDetailView, SecurityListView
 
-# API Router
-router = DefaultRouter()
-router.register(r'securities', SecurityViewSet, basename='security')
-
-# The API URLs are now determined automatically by the router.
-# The frontend URLs are defined separately.
+# These are the URLs for the user-facing web pages
 urlpatterns = [
-    path('api/', include(router.urls)),
     path('securities/<str:ticker>/', SecurityDetailView.as_view(), name='security-detail'),
     path('', SecurityListView.as_view(), name='security-list'), # Homepage
 ]

@@ -1,20 +1,23 @@
-# E:/Repos/ds_ai_backend/config/urls.py
-
+# config/urls.py
 from django.contrib import admin
 from django.urls import path, include
 
-# API routes are handled by their respective apps
+# API routes are grouped under /api/
 api_urlpatterns = [
-    path('', include('securities.urls')),
-    path('', include('mutual_funds.urls')),
-    path('', include('analysis.urls')),
+    path('', include('apps.securities.api_urls')),
+    path('', include('apps.mutual_funds.api_urls')),
+    path('', include('apps.analysis.api_urls')),
+]
+
+# Frontend routes for user-facing web pages
+frontend_urlpatterns = [
+    path('', include('apps.securities.urls')),
+    path('', include('apps.mutual_funds.urls')),
 ]
 
 # Main URL patterns
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include(api_urlpatterns)),
-
-    # The frontend view for a single security is also in the securities app
-    path('securities/<str:ticker>/', include('securities.urls')),
+    path('', include(frontend_urlpatterns)),
 ]

@@ -7,7 +7,7 @@ from pathlib import Path
 def main():
     """Run administrative tasks."""
     # Add the project root directory to the Python path.
-    # This ensures that the 'apps' and 'config' modules can be imported.
+    # This ensures that the 'config' and 'apps' modules can be imported.
     ROOT_DIR = Path(__file__).resolve().parent
     sys.path.insert(0, str(ROOT_DIR))
 

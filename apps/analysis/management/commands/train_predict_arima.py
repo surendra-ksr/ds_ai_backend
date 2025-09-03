@@ -6,6 +6,7 @@ from django.core.management.base import BaseCommand, CommandError
 from statsmodels.tsa.arima.model import ARIMA
 from apps.securities.models import Security, SecurityPrice
 from tqdm import tqdm
+import warnings
 
 # Define the directory to save trained models
 MODEL_DIR = Path(settings.BASE_DIR) / "apps" / "analysis" / "models"
@@ -34,6 +35,9 @@ class Command(BaseCommand):
 
         self.stdout.write(f"Starting ARIMA model training for {len(securities)} securities...")
 
+        # Suppress the specific ValueWarning from statsmodels for a cleaner bulk output
+        warnings.filterwarnings("ignore", message="A date index has been provided, but it has no associated frequency information")
+
         for security in tqdm(securities, desc="Training ARIMA Models"):
             try:
                 prices = SecurityPrice.objects.filter(security=security).order_by('date').values_list('date', 'close')
@@ -41,8 +45,19 @@ class Command(BaseCommand):
                     self.stderr.write(self.style.WARNING(f"Skipping {security.ticker}: Not enough data ({prices.count()} points)."))
                     continue
 
-                data = pd.Series([price[1] for price in prices], index=[price[0] for price in prices])
-                data = data.astype(float)
+                # Ensure the index is a proper DatetimeIndex
+                data = pd.Series(
+                    [price[1] for price in prices],
+                    index=pd.to_datetime([price[0] for price in prices]),
+                    dtype=float
+                )
+
+                # ** THE DEFINITIVE FIX **
+                # 1. Resample the data to a daily frequency ('D'). This creates a complete
+                #    date range and introduces NaN for missing days (weekends/holidays).
+                # 2. Forward-fill the missing values to carry the last known price over.
+                # This provides the model with a regular, clean time series and resolves the warning.
+                data = data.asfreq('D').fillna(method='ffill')
 
                 # A simple ARIMA model configuration (p=5, d=1, q=0)
                 model = ARIMA(data, order=(5, 1, 0))

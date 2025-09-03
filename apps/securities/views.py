@@ -2,7 +2,7 @@ from django.utils import timezone
 from datetime import timedelta
 from django.views.generic import TemplateView, ListView
 from django.conf import settings
-from django.db.models import F, Window, Subquery, OuterRef
+from django.db.models import F, Window, Subquery, OuterRef, ExpressionWrapper, DecimalField
 from django.db.models.functions import Lag
 from rest_framework import viewsets, mixins, generics
 from rest_framework.decorators import action
@@ -122,10 +122,15 @@ class MarketDashboardView(TemplateView):
             prev_close=Subquery(latest_prices.values('close')[1:2]),
             latest_volume=Subquery(latest_prices.values('volume')[:1])
         ).filter(latest_close__isnull=False, prev_close__isnull=False)
+        
         securities = securities.annotate(
             price_change=F('latest_close') - F('prev_close'),
-            percentage_change=(F('latest_close') - F('prev_close')) * 100.0 / F('prev_close')
+            percentage_change=ExpressionWrapper(
+                (F('latest_close') - F('prev_close')) * 100.0 / F('prev_close'),
+                output_field=DecimalField()
+            )
         )
+
         context['top_gainers'] = securities.order_by('-percentage_change')[:5]
         context['top_losers'] = securities.order_by('percentage_change')[:5]
         context['most_active'] = securities.order_by('-latest_volume')[:5]

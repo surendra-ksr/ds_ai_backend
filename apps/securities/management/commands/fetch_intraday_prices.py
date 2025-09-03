@@ -1,10 +1,11 @@
 import yfinance as yf
+import numpy as np
 from django.core.management.base import BaseCommand, CommandError
 from tqdm import tqdm
 from apps.securities.models import Security, SecurityPriceIntraday
 
 class Command(BaseCommand):
-    """This command fetches recent intraday price data, respecting API limitations."""
+    """This command fetches recent intraday price data, respecting API limitations and validating data types."""
     help = 'Fetches recent intraday (1-minute interval) price data for the last 7 days for one or all stocks.'
 
     def add_arguments(self, parser):
@@ -36,28 +37,39 @@ class Command(BaseCommand):
 
             if data.empty:
                 if not is_bulk:
-                    self.stdout.write(self.style.WARNING("No intraday data found for this ticker. It may not be available from the source."))
+                    self.stdout.write(self.style.WARNING("No intraday data found for this ticker."))
                 return
 
+            successful_rows = 0
             for index, row in data.iterrows():
+                # --- CRITICAL FIX: Validate that all price data are numbers before saving ---
+                open_price = row.get('Open')
+                high_price = row.get('High')
+                low_price = row.get('Low')
+                close_price = row.get('Close')
+                volume = row.get('Volume')
+
+                if not all(isinstance(price, (int, float, np.number)) for price in [open_price, high_price, low_price, close_price, volume]):
+                    continue # Skip this invalid row
+
                 SecurityPriceIntraday.objects.update_or_create(
                     security=security,
                     datetime=index.to_pydatetime(),
                     defaults={
-                        'open': row['Open'],
-                        'high': row['High'],
-                        'low': row['Low'],
-                        'close': row['Close'],
-                        'volume': row['Volume']
+                        'open': open_price,
+                        'high': high_price,
+                        'low': low_price,
+                        'close': close_price,
+                        'volume': volume
                     }
                 )
-            if not is_bulk:
-                self.stdout.write(self.style.SUCCESS(f"Successfully stored {len(data)} intraday data points."))
+                successful_rows += 1
+
+            if not is_bulk and successful_rows > 0:
+                self.stdout.write(self.style.SUCCESS(f"Successfully stored {successful_rows} valid intraday data points."))
 
         except Exception as e:
             if not is_bulk:
-                # If running for a single ticker, show the error.
                 raise CommandError(f"An error occurred while fetching intraday data for {security.ticker}. Error: {e}")
             else:
-                # If running in bulk, silently continue.
                 pass

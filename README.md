@@ -72,6 +72,10 @@ Follow these steps to get the project running locally.
   ```sh
   python manage.py migrate
   ```
+- **Seed the database with essential categories (Run this only once)**:
+  ```sh
+  python manage.py seed_categories
+  ```
 
 ---
 
@@ -83,7 +87,7 @@ Run these management commands to populate your database and train the predictive
     ```sh
     # Fetch a list of all major stocks
     python manage.py fetch_securities
-    # Fetch a list of all mutual fund schemes
+    # Fetch a list of all mutual fund schemes (this will also update AUM and filter them)
     python manage.py fetch_mf_schemes
     ```
 2.  **Fetch Historical Price Data**:

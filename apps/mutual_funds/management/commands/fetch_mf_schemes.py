@@ -1,27 +1,21 @@
 import requests
 from django.core.management.base import BaseCommand, CommandError
+from django.core.management import call_command
 from tqdm import tqdm
+from decimal import Decimal
 from apps.mutual_funds.models import MutualFundHouse, MutualFundScheme
 from apps.core.models import Category
-from apps.mutual_funds.data.major_mf_schemes import MAJOR_MF_SCHEMES
 
 AMFI_URL = "https://www.amfiindia.com/spages/NAVAll.txt"
+AUM_THRESHOLD = Decimal("500.00") # 500 Crores
 
 class Command(BaseCommand):
-    help = 'Fetches all mutual fund schemes or only major ones and assigns categories.'
-
-    def add_arguments(self, parser):
-        parser.add_argument('--major-only', action='store_true', help='Fetch only major, curated mutual fund schemes.')
+    help = 'Fetches all mutual fund schemes, updates their AUM, and filters out small funds.'
 
     def handle(self, *args, **options):
-        self.stdout.write("Fetching mutual fund scheme data from AMFI...")
-        category_map = {cat.name: cat for cat in Category.objects.all()}
+        # --- Step 1: Fetch all schemes from AMFI ---
+        self.stdout.write("Step 1/3: Fetching mutual fund scheme data from AMFI...")
         
-        # Determine which schemes to process
-        major_only = options['major_only']
-        if major_only:
-            self.stdout.write(self.style.SUCCESS("Processing only major, curated mutual fund schemes."))
-
         try:
             response = requests.get(AMFI_URL)
             response.raise_for_status()
@@ -36,11 +30,6 @@ class Command(BaseCommand):
                 if len(parts) < 6 or not parts[0].isdigit(): continue
 
                 scheme_code = int(parts[0])
-
-                # --- Filtering Logic ---
-                if major_only and scheme_code not in MAJOR_MF_SCHEMES:
-                    continue # Skip this scheme if it's not in our major list
-
                 scheme_name = parts[3]
                 isin = parts[1] if parts[1] != '-' else parts[2]
 
@@ -59,18 +48,43 @@ class Command(BaseCommand):
                 else:
                     updated_count += 1
 
+                # Robust Category Assignment: Use get_or_create to avoid KeyErrors.
+                # This makes the command self-sufficient and removes the need for a separate seeding command.
                 scheme.categories.clear()
                 name_lower = scheme_name.lower()
-                if 'equity' in name_lower: scheme.categories.add(category_map["Equity Fund"])
-                if 'debt' in name_lower: scheme.categories.add(category_map["Debt Fund"])
-                if 'hybrid' in name_lower: scheme.categories.add(category_map["Hybrid Fund"])
-                if 'index' in name_lower: scheme.categories.add(category_map["Index Fund"])
-                if 'tax' in name_lower or 'elss' in name_lower: scheme.categories.add(category_map["ELSS (Tax Saver)"])
-                if 'large cap' in name_lower: scheme.categories.add(category_map["Large Cap"])
-                if 'mid cap' in name_lower: scheme.categories.add(category_map["Mid Cap"])
-                if 'small cap' in name_lower: scheme.categories.add(category_map["Small Cap"])
+                if 'equity' in name_lower: scheme.categories.add(Category.objects.get_or_create(name="Equity Fund")[0])
+                if 'debt' in name_lower: scheme.categories.add(Category.objects.get_or_create(name="Debt Fund")[0])
+                if 'hybrid' in name_lower: scheme.categories.add(Category.objects.get_or_create(name="Hybrid Fund")[0])
+                if 'index' in name_lower: scheme.categories.add(Category.objects.get_or_create(name="Index Fund")[0])
+                if 'tax' in name_lower or 'elss' in name_lower: scheme.categories.add(Category.objects.get_or_create(name="ELSS (Tax Saver)")[0])
+                if 'large cap' in name_lower: scheme.categories.add(Category.objects.get_or_create(name="Large Cap")[0])
+                if 'mid cap' in name_lower: scheme.categories.add(Category.objects.get_or_create(name="Mid Cap")[0])
+                if 'small cap' in name_lower: scheme.categories.add(Category.objects.get_or_create(name="Small Cap")[0])
 
-            self.stdout.write(self.style.SUCCESS(f"\nProcessing complete. Created: {created_count}, Updated: {updated_count}."))
+            self.stdout.write(self.style.SUCCESS(f"\nStep 1 complete. Created: {created_count}, Updated: {updated_count} schemes."))
 
         except Exception as e:
-            raise CommandError(f'An error occurred: {e}')
+            raise CommandError(f'An error occurred during scheme fetching: {e}')
+
+        # --- Step 2: Update AUM for all schemes ---
+        self.stdout.write("\nStep 2/3: Calling command to update AUM for all schemes...")
+        try:
+            call_command('update_mf_aum')
+            self.stdout.write(self.style.SUCCESS("Step 2 complete. AUM data has been updated."))
+        except Exception as e:
+            raise CommandError(f'An error occurred during AUM update: {e}')
+
+        # --- Step 3: Filter out small funds ---
+        self.stdout.write(f"\nStep 3/3: Removing funds with AUM less than {AUM_THRESHOLD} Crores or with no AUM data...")
+        
+        schemes_to_delete = MutualFundScheme.objects.filter(aum__lt=AUM_THRESHOLD) | MutualFundScheme.objects.filter(aum__isnull=True)
+        
+        delete_count = schemes_to_delete.count()
+
+        if delete_count > 0:
+            schemes_to_delete.delete()
+            self.stdout.write(self.style.SUCCESS(f"Step 3 complete. Removed {delete_count} small or un-tracked funds."))
+        else:
+            self.stdout.write(self.style.SUCCESS("Step 3 complete. No funds needed to be removed."))
+
+        self.stdout.write(self.style.SUCCESS("\nMutual fund scheme processing is fully complete."))

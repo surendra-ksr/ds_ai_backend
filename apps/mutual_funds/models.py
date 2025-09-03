@@ -13,6 +13,8 @@ class MutualFundScheme(BaseModel):
     name = models.CharField(max_length=255)
     isin = models.CharField(max_length=20, unique=True, help_text="ISIN for the scheme")
     categories = models.ManyToManyField(Category, related_name='schemes', blank=True)
+    # New field for Assets Under Management
+    aum = models.DecimalField(max_digits=20, decimal_places=2, null=True, blank=True, help_text="Assets Under Management in Crores")
 
     def __str__(self):
         return self.name

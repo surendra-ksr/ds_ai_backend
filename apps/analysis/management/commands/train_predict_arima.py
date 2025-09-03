@@ -47,7 +47,8 @@ class Command(BaseCommand):
 
             # Save the trained model
             model_path = MODEL_DIR / f'{ticker}_arima.joblib'
-            joblib.dump(model_fit, model_path)
+            # Convert Path to string for cross-platform compatibility with joblib
+            joblib.dump(model_fit, str(model_path))
 
         except Exception as e:
             raise CommandError(f"An error occurred during model training: {e}")

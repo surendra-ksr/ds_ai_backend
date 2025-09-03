@@ -8,11 +8,42 @@ class Exchange(BaseModel):
     def __str__(self):
         return self.name
 
+class MarketIndex(BaseModel):
+    """Represents a major stock market index, e.g., NIFTY 50.
+    """
+    name = models.CharField(max_length=100, unique=True)
+    ticker = models.CharField(max_length=20, unique=True, help_text="e.g., 'NIFTY_50'")
+
+    def __str__(self):
+        return self.name
+
+class MarketIndexPrice(BaseModel):
+    """Stores the daily OHLCV data for a market index.
+    """
+    index = models.ForeignKey(MarketIndex, on_delete=models.CASCADE, related_name='prices')
+    date = models.DateField()
+    open = models.DecimalField(max_digits=12, decimal_places=4)
+    high = models.DecimalField(max_digits=12, decimal_places=4)
+    low = models.DecimalField(max_digits=12, decimal_places=4)
+    close = models.DecimalField(max_digits=12, decimal_places=4)
+    volume = models.BigIntegerField(null=True, blank=True)
+
+    class Meta:
+        unique_together = ('index', 'date')
+        ordering = ['-date']
+
+    def __str__(self):
+        return f"{self.index.name} on {self.date}"
+
 class Security(BaseModel):
     exchange = models.ForeignKey(Exchange, on_delete=models.CASCADE, related_name='securities')
     ticker = models.CharField(max_length=20, help_text="e.g., 'RELIANCE'")
     name = models.CharField(max_length=255, help_text="e.g., 'Reliance Industries'")
     categories = models.ManyToManyField(Category, related_name='securities', blank=True)
+    # New fields for fundamental data
+    market_cap = models.BigIntegerField(null=True, blank=True)
+    pe_ratio = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    dividend_yield = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
 
     class Meta:
         unique_together = ('exchange', 'ticker')

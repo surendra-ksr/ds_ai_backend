@@ -1,18 +1,14 @@
 import pandas as pd
-import pandas_ta as ta
 from apps.securities.models import Security, SecurityPrice, NewsArticle
 
 def prepare_lstm_data(ticker):
     """
     Prepares a feature-rich DataFrame for a given security ticker, suitable for LSTM model training.
-
-    Args:
-        ticker (str): The ticker symbol of the security.
-
-    Returns:
-        pd.DataFrame: A DataFrame with price data, technical indicators, and aligned sentiment scores.
-                     Returns None if there is not enough data.
     """
+    # Import pandas_ta locally. This is critical to avoid startup errors on Windows
+    # where this library can cause a ModuleNotFoundError for 'posix'.
+    import pandas_ta as ta
+
     try:
         security = Security.objects.get(ticker=ticker.upper())
     except Security.DoesNotExist:

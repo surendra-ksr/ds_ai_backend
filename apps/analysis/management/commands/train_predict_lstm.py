@@ -49,7 +49,8 @@ class Command(BaseCommand):
 
         # Save the scaler for this ticker
         scaler_path = MODEL_DIR / f'{ticker}_lstm_scaler.joblib'
-        joblib.dump(scaler, scaler_path)
+        # Convert Path to string for cross-platform compatibility
+        joblib.dump(scaler, str(scaler_path))
         self.stdout.write(self.style.SUCCESS(f"Scaler saved to {scaler_path}"))
 
         # --- Sequence Creation ---
@@ -83,6 +84,6 @@ class Command(BaseCommand):
 
         # --- Saving the Model ---
         model_path = MODEL_DIR / f'{ticker}_lstm_model.h5'
-        model.save(model_path)
+        model.save(str(model_path)) # Convert Path to string
 
         self.stdout.write(self.style.SUCCESS(f'Successfully trained and saved LSTM model for {ticker} to {model_path}'))

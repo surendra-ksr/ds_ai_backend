@@ -1,0 +1,111 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}My Portfolio{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="mb-4">My Portfolio</h1>
+
+    <!-- Add Transaction Form -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">Add New Transaction</h5>
+        </div>
+        <div class="card-body">
+            <form id="add-transaction-form" method="post" action="{% url 'api-transactions' %}">
+                {% csrf_token %}
+                {{ transaction_form|crispy }}
+                <button type="submit" class="btn btn-primary">Add Transaction</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Holdings Table -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">My Holdings</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead>
+                        <tr>
+                            <th>Asset</th>
+                            <th>Quantity</th>
+                            <th>Average Cost</th>
+                            <th>Total Cost</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for asset, data in holdings.items %}
+                            <tr id="holding-{{ asset.id }}">
+                                <td>{{ asset.name }}</td>
+                                <td>{{ data.quantity|floatformat:2 }}</td>
+                                <td>₹{{ data.total_cost|div:data.quantity|floatformat:2 }}</td>
+                                <td>₹{{ data.total_cost|floatformat:2 }}</td>
+                                <td><button class="btn btn-sm btn-outline-secondary view-transactions" data-asset-id="{{ asset.id }}">View</button></td>
+                            </tr>
+                        {% empty %}
+                            <tr>
+                                <td colspan="5" class="text-center text-muted">You have no holdings yet. Add a transaction to get started.</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Function to get CSRF token from cookies
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+const csrftoken = getCookie('csrftoken');
+
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('add-transaction-form');
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        const formData = new FormData(form);
+        const data = Object.fromEntries(formData.entries());
+
+        fetch(form.action, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrftoken
+            },
+            body: JSON.stringify(data)
+        })
+        .then(response => {
+            if (response.ok) {
+                location.reload(); // Reload the page to see the new transaction
+            } else {
+                response.json().then(errors => {
+                    // Simple error handling for now
+                    alert("Error adding transaction: " + JSON.stringify(errors));
+                });
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,85 @@
+{% extends 'base.html' %}
+
+{% block title %}Market Dashboard{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="text-center mb-5">
+        <h1 class="display-4">Market Overview</h1>
+        <p class="lead text-muted">A snapshot of the Indian financial markets.</p>
+    </div>
+
+    <!-- Market Indices -->
+    <div class="row justify-content-center mb-5">
+        {% for index in market_indices %}
+        <div class="col-md-5">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title">{{ index.name }}</h5>
+                    {% with latest_price=index.prices.first %}
+                        {% if latest_price %}
+                            <h3 class="card-text">{{ latest_price.close|floatformat:2 }}</h3>
+                        {% else %}
+                            <h3 class="card-text text-muted">No data</h3>
+                        {% endif %}
+                    {% endwith %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Top Movers -->
+    <div class="row">
+        <!-- Top Gainers -->
+        <div class="col-lg-4 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-success text-white">Top Gainers</div>
+                <ul class="list-group list-group-flush">
+                    {% for stock in top_gainers %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <a href="{% url 'security-detail' stock.ticker %}">{{ stock.ticker }}</a>
+                            <span class="badge bg-success rounded-pill">+{{ stock.percentage_change|floatformat:2 }}%</span>
+                        </li>
+                    {% empty %}
+                        <li class="list-group-item text-muted">No data available.</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+
+        <!-- Top Losers -->
+        <div class="col-lg-4 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-danger text-white">Top Losers</div>
+                <ul class="list-group list-group-flush">
+                    {% for stock in top_losers %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <a href="{% url 'security-detail' stock.ticker %}">{{ stock.ticker }}</a>
+                            <span class="badge bg-danger rounded-pill">{{ stock.percentage_change|floatformat:2 }}%</span>
+                        </li>
+                    {% empty %}
+                        <li class="list-group-item text-muted">No data available.</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+
+        <!-- Most Active -->
+        <div class="col-lg-4 mb-4">
+            <div class="card h-100">
+                <div class="card-header">Most Active by Volume</div>
+                <ul class="list-group list-group-flush">
+                    {% for stock in most_active %}
+                        <li class="list-group-item">
+                            <a href="{% url 'security-detail' stock.ticker %}">{{ stock.ticker }}</a>
+                        </li>
+                    {% empty %}
+                        <li class="list-group-item text-muted">No data available.</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

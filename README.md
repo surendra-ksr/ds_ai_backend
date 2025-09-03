@@ -100,14 +100,14 @@ Run these management commands to populate your database and train the predictive
 3.  **Fetch News & Analyze Sentiment**:
     ```sh
     # For a specific stock (uses mock data if no API key is set)
-    python manage.py fetch_news_articles RELIANCE
+    python manage.py fetch_news_articles --all
     ```
 4.  **Train Predictive Models**:
     ```sh
     # Train the ARIMA model for a stock
-    python manage.py train_predict_arima RELIANCE
+    python manage.py train_predict_arima --all
     # Train the LSTM model for a stock
-    python manage.py train_predict_lstm RELIANCE
+    python manage.py train_predict_lstm --all
     ```
 
 ---

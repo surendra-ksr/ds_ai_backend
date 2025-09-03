@@ -8,8 +8,10 @@ from django.core.management.base import BaseCommand, CommandError
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, Dropout
 from sklearn.preprocessing import MinMaxScaler
+from tqdm import tqdm
 
 from apps.analysis.data_processing import prepare_lstm_data
+from apps.securities.models import Security
 
 # Define the directory to save trained models and scalers
 MODEL_DIR = Path(settings.BASE_DIR) / "apps" / "analysis" / "models"
@@ -22,68 +24,71 @@ BATCH_SIZE = 32
 
 class Command(BaseCommand):
     """
-    Trains and saves an LSTM model for a given security, including sentiment analysis features.
+    Trains and saves an LSTM model for one or all securities.
     """
-    help = 'Trains an LSTM forecasting model for a specified security ticker.'
+    help = 'Trains an LSTM forecasting model for specified security tickers or all of them.'
 
     def add_arguments(self, parser):
-        parser.add_argument('ticker', type=str, help='The ticker symbol of the security to train a model for.')
+        parser.add_argument('tickers', nargs='*', type=str, help='Optional list of security tickers to train models for.')
+        parser.add_argument('--all', action='store_true', help='Train models for all securities in the database.')
 
     def handle(self, *args, **options):
-        ticker = options['ticker'].upper()
+        if options['all']:
+            securities = list(Security.objects.all())
+        elif options['tickers']:
+            securities = list(Security.objects.filter(ticker__in=[t.upper() for t in options['tickers']]))
+        else:
+            raise CommandError("No tickers specified. Use tickers or the --all flag.")
 
-        self.stdout.write(f"Preparing data for {ticker}...")
-        df = prepare_lstm_data(ticker)
+        if not securities:
+            raise CommandError("No securities found for the given criteria.")
 
-        if df is None or df.empty:
-            raise CommandError(f"Could not prepare data for {ticker}. Not enough data points or security does not exist.")
+        self.stdout.write(f"Starting LSTM model training for {len(securities)} securities...")
 
-        # The target variable we want to predict
-        target_column = 'close'
-        # Drop non-numeric columns if any exist before scaling
-        df = df.select_dtypes(include=np.number)
+        for security in tqdm(securities, desc="Training LSTM Models"):
+            try:
+                df = prepare_lstm_data(security.ticker)
+                if df is None or df.empty:
+                    self.stderr.write(self.style.WARNING(f"Skipping {security.ticker}: Not enough data to prepare features."))
+                    continue
 
-        # --- Data Scaling ---
-        scaler = MinMaxScaler(feature_range=(0, 1))
-        scaled_data = scaler.fit_transform(df)
+                target_column = 'close'
+                df = df.select_dtypes(include=np.number)
 
-        # Save the scaler for this ticker
-        scaler_path = MODEL_DIR / f'{ticker}_lstm_scaler.joblib'
-        # Convert Path to string for cross-platform compatibility
-        joblib.dump(scaler, str(scaler_path))
-        self.stdout.write(self.style.SUCCESS(f"Scaler saved to {scaler_path}"))
+                scaler = MinMaxScaler(feature_range=(0, 1))
+                scaled_data = scaler.fit_transform(df)
 
-        # --- Sequence Creation ---
-        X, y = [], []
-        for i in range(SEQUENCE_LENGTH, len(scaled_data)):
-            X.append(scaled_data[i-SEQUENCE_LENGTH:i])
-            # The target is the 'close' price, get its index
-            target_col_index = df.columns.get_loc(target_column)
-            y.append(scaled_data[i, target_col_index])
+                scaler_path = MODEL_DIR / f'{security.ticker}_lstm_scaler.joblib'
+                joblib.dump(scaler, str(scaler_path))
 
-        X, y = np.array(X), np.array(y)
+                X, y = [], []
+                for i in range(SEQUENCE_LENGTH, len(scaled_data)):
+                    X.append(scaled_data[i-SEQUENCE_LENGTH:i])
+                    target_col_index = df.columns.get_loc(target_column)
+                    y.append(scaled_data[i, target_col_index])
 
-        self.stdout.write(f"Created {X.shape[0]} sequences of length {X.shape[1]}.")
+                X, y = np.array(X), np.array(y)
 
-        # --- LSTM Model Architecture ---
-        model = Sequential([
-            LSTM(units=50, return_sequences=True, input_shape=(X.shape[1], X.shape[2])),
-            Dropout(0.2),
-            LSTM(units=50, return_sequences=False),
-            Dropout(0.2),
-            Dense(units=25),
-            Dense(units=1)
-        ])
+                if X.shape[0] == 0:
+                    self.stderr.write(self.style.WARNING(f"Skipping {security.ticker}: Not enough data to create sequences."))
+                    continue
 
-        model.compile(optimizer='adam', loss='mean_squared_error')
-        model.summary()
+                model = Sequential([
+                    LSTM(units=50, return_sequences=True, input_shape=(X.shape[1], X.shape[2])),
+                    Dropout(0.2),
+                    LSTM(units=50, return_sequences=False),
+                    Dropout(0.2),
+                    Dense(units=25),
+                    Dense(units=1)
+                ])
+                model.compile(optimizer='adam', loss='mean_squared_error')
+                model.fit(X, y, epochs=EPOCHS, batch_size=BATCH_SIZE, verbose=0) # Set verbose=0 for cleaner bulk output
 
-        # --- Model Training ---
-        self.stdout.write(f"Training LSTM model for {ticker}...")
-        model.fit(X, y, epochs=EPOCHS, batch_size=BATCH_SIZE, verbose=1)
+                model_path = MODEL_DIR / f'{security.ticker}_lstm_model.h5'
+                model.save(str(model_path))
 
-        # --- Saving the Model ---
-        model_path = MODEL_DIR / f'{ticker}_lstm_model.h5'
-        model.save(str(model_path)) # Convert Path to string
+            except Exception as e:
+                self.stderr.write(self.style.ERROR(f"Skipping {security.ticker} due to an error: {e}"))
+                continue
 
-        self.stdout.write(self.style.SUCCESS(f'Successfully trained and saved LSTM model for {ticker} to {model_path}'))
+        self.stdout.write(self.style.SUCCESS("\nLSTM model training complete."))

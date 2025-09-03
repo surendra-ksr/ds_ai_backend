@@ -5,6 +5,7 @@ from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 from statsmodels.tsa.arima.model import ARIMA
 from apps.securities.models import Security, SecurityPrice
+from tqdm import tqdm
 
 # Define the directory to save trained models
 MODEL_DIR = Path(settings.BASE_DIR) / "apps" / "analysis" / "models"
@@ -12,45 +13,47 @@ MODEL_DIR.mkdir(parents=True, exist_ok=True)
 
 class Command(BaseCommand):
     """
-    Trains and saves a simple ARIMA model for a given security.
+    Trains and saves a simple ARIMA model for one or all securities.
     """
-    help = 'Trains a time-series forecasting model for a specified security ticker.'
+    help = 'Trains a time-series forecasting model for specified security tickers or all of them.'
 
     def add_arguments(self, parser):
-        parser.add_argument('ticker', type=str, help='The ticker symbol of the security to train a model for.')
+        parser.add_argument('tickers', nargs='*', type=str, help='Optional list of security tickers to train models for.')
+        parser.add_argument('--all', action='store_true', help='Train models for all securities in the database.')
 
     def handle(self, *args, **options):
-        ticker = options['ticker'].upper()
+        if options['all']:
+            securities = list(Security.objects.all())
+        elif options['tickers']:
+            securities = list(Security.objects.filter(ticker__in=[t.upper() for t in options['tickers']]))
+        else:
+            raise CommandError("No tickers specified. Use tickers or the --all flag.")
 
-        try:
-            security = Security.objects.get(ticker=ticker)
-        except Security.DoesNotExist:
-            raise CommandError(f'Security with ticker "{ticker}" does not exist.')
+        if not securities:
+            raise CommandError("No securities found for the given criteria.")
 
-        # Fetch historical data
-        prices = SecurityPrice.objects.filter(security=security).order_by('date').values_list('date', 'close')
-        if prices.count() < 100: # Need sufficient data for training
-            raise CommandError(f'Not enough historical data for "{ticker}" to train a model (found {prices.count()} data points).')
+        self.stdout.write(f"Starting ARIMA model training for {len(securities)} securities...")
 
-        self.stdout.write(f"Found {prices.count()} data points for {ticker}. Preparing data...")
-        
-        # Convert to a pandas Series
-        data = pd.Series([price[1] for price in prices], index=[price[0] for price in prices])
-        data = data.astype(float)
+        for security in tqdm(securities, desc="Training ARIMA Models"):
+            try:
+                prices = SecurityPrice.objects.filter(security=security).order_by('date').values_list('date', 'close')
+                if prices.count() < 100:
+                    self.stderr.write(self.style.WARNING(f"Skipping {security.ticker}: Not enough data ({prices.count()} points)."))
+                    continue
 
-        self.stdout.write("Training ARIMA(5,1,0) model...")
+                data = pd.Series([price[1] for price in prices], index=[price[0] for price in prices])
+                data = data.astype(float)
 
-        try:
-            # A simple ARIMA model configuration (p=5, d=1, q=0)
-            model = ARIMA(data, order=(5, 1, 0))
-            model_fit = model.fit()
+                # A simple ARIMA model configuration (p=5, d=1, q=0)
+                model = ARIMA(data, order=(5, 1, 0))
+                model_fit = model.fit()
 
-            # Save the trained model
-            model_path = MODEL_DIR / f'{ticker}_arima.joblib'
-            # Convert Path to string for cross-platform compatibility with joblib
-            joblib.dump(model_fit, str(model_path))
+                # Save the trained model
+                model_path = MODEL_DIR / f'{security.ticker}_arima.joblib'
+                joblib.dump(model_fit, str(model_path))
 
-        except Exception as e:
-            raise CommandError(f"An error occurred during model training: {e}")
+            except Exception as e:
+                self.stderr.write(self.style.ERROR(f"Skipping {security.ticker} due to an error: {e}"))
+                continue
 
-        self.stdout.write(self.style.SUCCESS(f'Successfully trained and saved ARIMA model for {ticker} to {model_path}'))
+        self.stdout.write(self.style.SUCCESS("\nARIMA model training complete."))

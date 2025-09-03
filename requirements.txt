@@ -10,7 +10,6 @@ django-apscheduler
 yfinance
 pandas
 numpy
-pandas-ta
 scikit-learn
 tensorflow
 statsmodels
@@ -23,3 +22,4 @@ selenium
 
 # Utilities
 python-dotenv
+tqdm

@@ -1,7 +1,7 @@
 from django.views.generic import TemplateView, ListView
-from rest_framework import viewsets, mixins
-from .models import Security
-from .serializers import SecurityListSerializer, SecurityDetailSerializer
+from rest_framework import viewsets, mixins, generics
+from .models import Security, SecurityPriceIntraday
+from .serializers import SecurityListSerializer, SecurityDetailSerializer, SecurityPriceIntradaySerializer
 
 # --- API Views ---
 
@@ -18,6 +18,16 @@ class SecurityViewSet(mixins.ListModelMixin,
         if self.action == 'list':
             return SecurityListSerializer
         return SecurityDetailSerializer
+
+class SecurityPriceIntradayListView(generics.ListAPIView):
+    """
+    An API view to list all intraday price points for a given security ticker.
+    """
+    serializer_class = SecurityPriceIntradaySerializer
+
+    def get_queryset(self):
+        ticker = self.kwargs['ticker'].upper()
+        return SecurityPriceIntraday.objects.filter(security__ticker=ticker).order_by('datetime')
 
 # --- Frontend Template Views ---
 

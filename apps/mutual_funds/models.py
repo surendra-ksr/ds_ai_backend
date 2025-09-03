@@ -9,7 +9,7 @@ class MutualFundHouse(BaseModel):
 
 class MutualFundScheme(BaseModel):
     fund_house = models.ForeignKey(MutualFundHouse, on_delete=models.CASCADE, related_name='schemes')
-    scheme_code = models.IntegerField(unique=True, help_text="AMFI's unique scheme code")
+    scheme_code = models.IntegerField(help_text="AMFI's scheme code")
     name = models.CharField(max_length=255)
     isin = models.CharField(max_length=20, unique=True, help_text="ISIN for the scheme")
     categories = models.ManyToManyField(Category, related_name='schemes', blank=True)
@@ -28,3 +28,13 @@ class MutualFundNAV(BaseModel):
 
     def __str__(self):
         return f"{self.scheme.name} - {self.nav} on {self.date}"
+
+class MutualFundPerformance(BaseModel):
+    scheme = models.OneToOneField(MutualFundScheme, on_delete=models.CASCADE, related_name='performance')
+    return_1y = models.FloatField(null=True, blank=True, help_text="1-Year Annualized Return")
+    return_3y = models.FloatField(null=True, blank=True, help_text="3-Year Annualized Return")
+    return_5y = models.FloatField(null=True, blank=True, help_text="5-Year Annualized Return")
+    ytd_return = models.FloatField(null=True, blank=True, help_text="Year-to-Date Return")
+
+    def __str__(self):
+        return f"Performance for {self.scheme.name}"

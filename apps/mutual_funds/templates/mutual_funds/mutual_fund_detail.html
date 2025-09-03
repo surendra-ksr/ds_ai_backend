@@ -1,76 +1,74 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mutual Fund Analysis</title>
+{% extends 'base.html' %}
+
+{% block title %}Mutual Fund Analysis | {{ block.super }}{% endblock %}
+
+{% block head_extra %}
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; background-color: #f4f4f9; color: #333; }
-        header { background-color: #fff; padding: 1em 2em; border-bottom: 1px solid #ddd; }
-        main { padding: 2em; }
-        .container { max-width: 1200px; margin: auto; }
+        .grid { display: grid; grid-template-columns: 2fr 1fr; gap: 2em; }
         .chart-container { background-color: #fff; padding: 2em; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .card { background-color: #fff; padding: 2em; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .performance-item { display: flex; justify-content: space-between; padding: 0.75em 0; border-bottom: 1px solid #eee; }
+        .performance-item:last-child { border-bottom: none; }
+        .performance-item span { font-weight: bold; color: #007bff; }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@^4"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@^3"></script>
-</head>
-<body>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@^2.0.1"></script>
+{% endblock %}
 
-    <header>
-        <div class="container">
-            <h1 id="scheme-name">Loading...</h1>
-        </div>
-    </header>
+{% block content %}
+    <h1 id="scheme-name">Loading...</h1>
 
-    <main class="container">
+    <div class="grid">
         <div class="chart-container">
+            <h2>Historical Net Asset Value (NAV)</h2>
             <canvas id="navChart"></canvas>
         </div>
-    </main>
+        <div class="card">
+            <h2>Performance</h2>
+            <div id="performance-list"></div>
+        </div>
+    </div>
 
     <script>
         document.addEventListener('DOMContentLoaded', function () {
             const schemeCode = window.location.pathname.split('/').filter(Boolean).pop();
             const schemeNameEl = document.getElementById('scheme-name');
+            const performanceListEl = document.getElementById('performance-list');
             const ctx = document.getElementById('navChart').getContext('2d');
 
-            // Fetch data from our API
             fetch(`/api/mutual-funds/${schemeCode}/`)
                 .then(response => response.json())
                 .then(data => {
-                    schemeNameEl.textContent = `${data.name}`;
+                    schemeNameEl.textContent = data.name;
 
-                    // Prepare data for Chart.js
+                    // Render Performance Data
+                    if (data.performance) {
+                        let perfHtml = '';
+                        const perf_items = [
+                            { label: '1-Year Return', value: data.performance.return_1y },
+                            { label: '3-Year Ann. Return', value: data.performance.return_3y },
+                            { label: '5-Year Ann. Return', value: data.performance.return_5y },
+                            { label: 'Year-to-Date Return', value: data.performance.ytd_return },
+                        ];
+                        perf_items.forEach(item => {
+                            if (item.value !== null) {
+                                perfHtml += `<div class="performance-item">${item.label} <span>${item.value.toFixed(2)}%</span></div>`;
+                            }
+                        });
+                        performanceListEl.innerHTML = perfHtml;
+                    } else {
+                        performanceListEl.innerHTML = '<p>No performance data available. Run the `calculate_mf_performance` command.</p>';
+                    }
+
+                    // Render NAV Chart
                     const navData = data.navs.map(n => ({ x: new Date(n.date).valueOf(), y: parseFloat(n.nav) })).sort((a, b) => a.x - b.x);
-
-                    // Create the chart
                     new Chart(ctx, {
                         type: 'line',
-                        data: {
-                            datasets: [
-                                {
-                                    label: 'Net Asset Value (NAV)',
-                                    data: navData,
-                                    borderColor: 'rgba(75, 192, 192, 1)',
-                                    borderWidth: 2,
-                                    pointRadius: 0,
-                                    fill: true,
-                                    backgroundColor: 'rgba(75, 192, 192, 0.2)'
-                                }
-                            ]
-                        },
+                        data: { datasets: [{ label: 'NAV', data: navData, borderColor: 'rgba(75, 192, 192, 1)', borderWidth: 2, pointRadius: 0, fill: true, backgroundColor: 'rgba(75, 192, 192, 0.2)' }] },
                         options: {
-                            scales: {
-                                x: {
-                                    type: 'time',
-                                    time: { unit: 'day' }
-                                },
-                                y: {
-                                    beginAtZero: false,
-                                    ticks: { callback: function(value) { return '₹' + value; } }
-                                }
-                            }
-                        }
+                            scales: { x: { type: 'time', time: { unit: 'day' } }, y: { ticks: { callback: function(value) { return '₹' + value; } } } },
+                            plugins: { zoom: { pan: { enabled: true, mode: 'x' }, zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x' } } } }
                     });
                 })
                 .catch(error => {
@@ -79,6 +77,4 @@
                 });
         });
     </script>
-
-</body>
-</html>
+{% endblock %}

@@ -1,47 +1,41 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>All Mutual Funds | Dalal Street AI</title>
+{% extends 'base.html' %}
+
+{% block title %}All Mutual Funds | {{ block.super }}{% endblock %}
+
+{% block content %}
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; background-color: #f4f4f9; color: #333; }
-        header { background-color: #fff; padding: 1em 2em; border-bottom: 1px solid #ddd; }
-        main { padding: 2em; }
-        .container { max-width: 1200px; margin: auto; }
-        .fund-house { margin-bottom: 2em; }
-        .scheme-list { list-style-type: none; padding: 0; }
-        .scheme-item { margin: 0.5em 0; }
-        a { text-decoration: none; color: #007bff; }
-        a:hover { text-decoration: underline; }
+        .fund-house {
+            background-color: #fff;
+            border: 1px solid #dee2e6;
+            border-radius: .25rem;
+            margin-bottom: 2rem;
+            padding: 1.5rem;
+        }
+        .scheme-list { list-style-type: none; padding: 0; column-count: 2; }
+        .scheme-item { margin-bottom: 0.5rem; }
+        .scheme-item a { text-decoration: none; color: #007bff; }
+        .scheme-item a:hover { text-decoration: underline; }
     </style>
-</head>
-<body>
 
-    <header>
-        <div class="container">
-            <h1>Mutual Fund Schemes</h1>
+    <h1>Mutual Fund Schemes</h1>
+
+    {% for fund_house, schemes in fund_houses.items %}
+        <div class="fund-house">
+            <h2>{{ fund_house }}</h2>
+            <hr>
+            <ul class="scheme-list">
+                {% for scheme in schemes %}
+                    <li class="scheme-item">
+                        <a href="{% url 'mutual-fund-detail' scheme_code=scheme.scheme_code %}">
+                            {{ scheme.name }}
+                        </a>
+                    </li>
+                {% endfor %}
+            </ul>
         </div>
-    </header>
-
-    <main class="container">
-        {% for fund_house, schemes in fund_houses.items %}
-            <div class="fund-house">
-                <h2>{{ fund_house }}</h2>
-                <ul class="scheme-list">
-                    {% for scheme in schemes %}
-                        <li class="scheme-item">
-                            <a href="{% url 'mutual-fund-detail' scheme_code=scheme.scheme_code %}">
-                                {{ scheme.name }}
-                            </a>
-                        </li>
-                    {% endfor %}
-                </ul>
-            </div>
-        {% empty %}
+    {% empty %}
+        <div class="card">
             <p>No mutual funds found in the database. Run the `fetch_mf_schemes` command.</p>
-        {% endfor %}
-    </main>
-
-</body>
-</html>
+        </div>
+    {% endfor %}
+{% endblock %}

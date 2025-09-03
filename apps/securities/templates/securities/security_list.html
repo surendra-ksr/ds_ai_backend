@@ -1,32 +1,26 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>All Securities | Dalal Street AI</title>
+{% extends 'base.html' %}
+
+{% block title %}All Securities | {{ block.super }}{% endblock %}
+
+{% block content %}
     <style>
-        body { font-family: sans-serif; margin: 2em; }
-        ul { list-style-type: none; padding: 0; }
-        li { margin: 0.5em 0; }
-        a { text-decoration: none; color: #007bff; }
-        a:hover { text-decoration: underline; }
+        .security-list { list-style-type: none; padding: 0; }
+        .security-item { background-color: #fff; border: 1px solid #dee2e6; border-radius: .25rem; margin-bottom: 0.5rem; }
+        .security-item a { display: block; padding: 1rem 1.5rem; text-decoration: none; color: #212529; }
+        .security-item a:hover { background-color: #f8f9fa; }
     </style>
-</head>
-<body>
 
     <h1>Available Securities for Analysis</h1>
 
-    <ul>
+    <ul class="security-list">
         {% for security in object_list %}
-            <li>
+            <li class="security-item">
                 <a href="{% url 'security-detail' ticker=security.ticker %}">
                     {{ security.name }} ({{ security.ticker }})
                 </a>
             </li>
         {% empty %}
-            <li>No securities found in the database. Run the `fetch_prices --all-major` command.</li>
+            <li class="security-item">No securities found in the database. Run the `fetch_prices --all-major` command.</li>
         {% endfor %}
     </ul>
-
-</body>
-</html>
+{% endblock %}

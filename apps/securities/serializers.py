@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Security, SecurityPrice, NewsArticle, Exchange
+from .models import Security, SecurityPrice, NewsArticle, Exchange, SecurityPriceIntraday
 from apps.core.models import Category
 
 class CategorySerializer(serializers.StringRelatedField):
@@ -17,6 +17,11 @@ class SecurityPriceSerializer(serializers.ModelSerializer):
             'date', 'open', 'high', 'low', 'close', 'adj_close', 'volume',
             'sma_20', 'sma_50', 'sma_200', 'rsi', 'macd', 'bollinger_upper', 'bollinger_lower'
         ]
+
+class SecurityPriceIntradaySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SecurityPriceIntraday
+        fields = ['datetime', 'open', 'high', 'low', 'close', 'volume']
 
 class NewsArticleSerializer(serializers.ModelSerializer):
     class Meta:

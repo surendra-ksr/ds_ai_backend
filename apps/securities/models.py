@@ -47,6 +47,22 @@ class SecurityPrice(BaseModel):
     def __str__(self):
         return f"{self.security.ticker} on {self.date}"
 
+class SecurityPriceIntraday(BaseModel):
+    security = models.ForeignKey(Security, on_delete=models.CASCADE, related_name='intraday_prices')
+    datetime = models.DateTimeField()
+    open = models.DecimalField(max_digits=12, decimal_places=4)
+    high = models.DecimalField(max_digits=12, decimal_places=4)
+    low = models.DecimalField(max_digits=12, decimal_places=4)
+    close = models.DecimalField(max_digits=12, decimal_places=4)
+    volume = models.BigIntegerField()
+
+    class Meta:
+        unique_together = ('security', 'datetime')
+        ordering = ['-datetime']
+
+    def __str__(self):
+        return f"{self.security.ticker} at {self.datetime}"
+
 class CorporateAction(BaseModel):
     ACTION_TYPES = [
         ('DIVIDEND', 'Dividend'),

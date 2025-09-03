@@ -1,15 +1,9 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stock Analysis</title>
+{% extends 'base.html' %}
+
+{% block title %}Stock Analysis | {{ block.super }}{% endblock %}
+
+{% block head_extra %}
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; background-color: #f4f4f9; color: #333; }
-        header { background-color: #fff; padding: 1em 2em; border-bottom: 1px solid #ddd; }
-        main { padding: 2em; }
-        h1, h2 { color: #1a1a1a; }
-        .container { max-width: 1200px; margin: auto; }
         .chart-container { background-color: #fff; padding: 2em; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 2em; }
         .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2em; }
         .card { background-color: #fff; padding: 2em; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
@@ -21,31 +15,32 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@^4"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@^3"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial@^0.2.0"></script>
-</head>
-<body>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@^2.0.1"></script>
+{% endblock %}
 
-    <header>
-        <div class="container">
-            <h1 id="security-name">Loading...</h1>
-        </div>
-    </header>
+{% block content %}
+    <h1 id="security-name">Loading...</h1>
 
-    <main class="container">
-        <div class="chart-container">
-            <canvas id="priceChart"></canvas>
-        </div>
+    <div class="chart-container">
+        <h2>Historical Daily Prices</h2>
+        <canvas id="priceChart"></canvas>
+    </div>
 
-        <div class="grid">
-            <div class="card">
-                <h2>Model Predictions</h2>
-                <div id="predictions-list"></div>
-            </div>
-            <div class="card">
-                <h2>Recent News</h2>
-                <div id="news-list"></div>
-            </div>
+    <div class="chart-container">
+        <h2>Recent Intraday Prices (1-Minute)</h2>
+        <canvas id="intradayChart"></canvas>
+    </div>
+
+    <div class="grid">
+        <div class="card">
+            <h2>Model Predictions</h2>
+            <div id="predictions-list"></div>
         </div>
-    </main>
+        <div class="card">
+            <h2>Recent News</h2>
+            <div id="news-list"></div>
+        </div>
+    </div>
 
     <script>
         document.addEventListener('DOMContentLoaded', function () {
@@ -53,50 +48,33 @@
             const securityNameEl = document.getElementById('security-name');
             const newsListEl = document.getElementById('news-list');
             const predictionsListEl = document.getElementById('predictions-list');
-            const ctx = document.getElementById('priceChart').getContext('2d');
+            const dailyCtx = document.getElementById('priceChart').getContext('2d');
+            const intradayCtx = document.getElementById('intradayChart').getContext('2d');
 
-            // --- 1. Fetch Main Security Data (Prices, News) ---
             fetch(`/api/securities/${ticker}/`)
                 .then(response => response.json())
                 .then(data => {
                     securityNameEl.textContent = `${data.name} (${data.ticker})`;
-
-                    // Render News
                     if (data.news_articles && data.news_articles.length > 0) {
                         let newsHtml = '';
                         data.news_articles.slice(0, 5).forEach(article => {
-                            newsHtml += `
-                                <div class="news-item">
-                                    <a href="${article.url}" target="_blank">${article.headline}</a>
-                                    <p>${article.summary}</p>
-                                    <small>Source: ${article.source} | Sentiment: ${article.sentiment_score.toFixed(2)}</small>
-                                </div>`;
+                            newsHtml += `<div class="news-item"><a href="${article.url}" target="_blank">${article.headline}</a><p>${article.summary}</p><small>Source: ${article.source} | Sentiment: ${article.sentiment_score.toFixed(2)}</small></div>`;
                         });
                         newsListEl.innerHTML = newsHtml;
                     } else {
                         newsListEl.innerHTML = '<p>No recent news found.</p>';
                     }
-
-                    // Render Chart
-                    renderChart(data.prices);
+                    renderDailyChart(data.prices);
                 })
-                .catch(error => {
-                    console.error('Error fetching security data:', error);
-                    securityNameEl.textContent = "Could not load security data.";
-                });
+                .catch(error => console.error('Error fetching security data:', error));
 
-            // --- 2. Fetch Prediction Data ---
             fetch(`/api/analysis/${ticker}/predictions/`)
                 .then(response => response.json())
                 .then(data => {
                     if (data && data.length > 0) {
                         let predictionsHtml = '';
                         data.forEach(pred => {
-                            predictionsHtml += `
-                                <div class="prediction-item">
-                                    <span>${pred.prediction_date} (${pred.model_name})</span>
-                                    <strong>${parseFloat(pred.predicted_value).toFixed(2)}</strong>
-                                </div>`;
+                            predictionsHtml += `<div class="prediction-item"><span>${pred.prediction_date} (${pred.model_name})</span><strong>${parseFloat(pred.predicted_value).toFixed(2)}</strong></div>`;
                         });
                         predictionsListEl.innerHTML = predictionsHtml;
                     } else {
@@ -105,49 +83,33 @@
                 })
                 .catch(error => console.error('Error fetching predictions:', error));
 
-            // --- Chart Rendering Function ---
-            function renderChart(prices) {
-                const ohlcData = prices.map(p => ({
-                    x: new Date(p.date).valueOf(),
-                    o: p.open,
-                    h: p.high,
-                    l: p.low,
-                    c: p.close
-                })).sort((a, b) => a.x - b.x);
-
-                const sma50Data = prices.map(p => ({ x: new Date(p.date).valueOf(), y: p.sma_50 })).sort((a, b) => a.x - b.x);
-
-                new Chart(ctx, {
-                    type: 'candlestick',
-                    data: {
-                        datasets: [
-                            {
-                                label: 'Price (OHLC)',
-                                data: ohlcData,
-                            },
-                            {
-                                label: 'SMA 50',
-                                type: 'line',
-                                data: sma50Data,
-                                borderColor: 'rgba(255, 159, 64, 1)',
-                                borderWidth: 2,
-                                pointRadius: 0,
-                                fill: false
-                            }
-                        ]
-                    },
-                    options: {
-                        scales: {
-                            x: {
-                                type: 'time',
-                                time: { unit: 'day' }
-                            }
-                        }
+            fetch(`/api/securities/${ticker}/intraday/`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data && data.length > 0) {
+                        renderIntradayChart(data);
+                    } else {
+                        document.getElementById('intradayChart').parentElement.innerHTML += '<p>No intraday data found. Run the `fetch_intraday_prices` command.</p>';
                     }
+                })
+                .catch(error => console.error('Error fetching intraday data:', error));
+
+            function renderDailyChart(prices) {
+                const ohlcData = prices.map(p => ({ x: new Date(p.date).valueOf(), o: p.open, h: p.high, l: p.low, c: p.close })).sort((a, b) => a.x - b.x);
+                const sma50Data = prices.map(p => ({ x: new Date(p.date).valueOf(), y: p.sma_50 })).sort((a, b) => a.x - b.x);
+                new Chart(dailyCtx, {
+                    type: 'candlestick', data: { datasets: [{ label: 'Price (OHLC)', data: ohlcData }, { label: 'SMA 50', type: 'line', data: sma50Data, borderColor: 'rgba(255, 159, 64, 1)', borderWidth: 2, pointRadius: 0, fill: false }] },
+                    options: { scales: { x: { type: 'time', time: { unit: 'day' } } }, plugins: { zoom: { pan: { enabled: true, mode: 'x' }, zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x' } } } }
+                });
+            }
+
+            function renderIntradayChart(prices) {
+                const lineData = prices.map(p => ({ x: new Date(p.datetime).valueOf(), y: p.close }));
+                new Chart(intradayCtx, {
+                    type: 'line', data: { datasets: [{ label: '1-Minute Close Price', data: lineData, borderColor: 'rgba(153, 102, 255, 1)', borderWidth: 2, pointRadius: 0, fill: false }] },
+                    options: { scales: { x: { type: 'time', time: { unit: 'minute' } } }, plugins: { zoom: { pan: { enabled: true, mode: 'x' }, zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x' } } } }
                 });
             }
         });
     </script>
-
-</body>
-</html>
+{% endblock %}

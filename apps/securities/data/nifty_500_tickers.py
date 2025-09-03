@@ -1,0 +1,17 @@
+# A representative subset of the Nifty 500 stocks for automated fetching.
+# The full list can be found on the NSE website and added here.
+
+NIFTY_50 = [
+    "RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "ICICIBANK.NS", "INFY.NS", "HINDUNILVR.NS", "BHARTIARTL.NS",
+    "ITC.NS", "SBIN.NS", "LICI.NS", "HCLTECH.NS", "KOTAKBANK.NS", "ASIANPAINT.NS", "ADANIENT.NS",
+    "AXISBANK.NS", "BAJFINANCE.NS", "MARUTI.NS", "WIPRO.NS", "TATAMOTORS.NS", "ULTRACEMCO.NS",
+]
+
+NIFTY_NEXT_50 = [
+    "IOC.NS", "VEDL.NS", "PIDILITIND.NS", "ADANIGREEN.NS", "INDIGO.NS", "GAIL.NS", "JUBLFOOD.NS",
+    "BERGEPAINT.NS", "HINDALCO.NS", "DLF.NS", "BOSCHLTD.NS", "SIEMENS.NS", "UPL.NS", "HAVELLS.NS",
+    "CHOLAFIN.NS", "APOLLOHOSP.NS", "DIVISLAB.NS", "DABUR.NS", "AMBUJACEM.NS", "TRENT.NS",
+]
+
+# Combine them for a broader list
+MAJOR_STOCKS = NIFTY_50 + NIFTY_NEXT_50

@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Analysis</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+</head>
+<body>
+
+    <h1 id="security-name">Loading...</h1>
+
+    <div style="width: 80%; margin: auto;">
+        <canvas id="priceChart"></canvas>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const ticker = window.location.pathname.split('/').filter(Boolean).pop();
+            const securityNameEl = document.getElementById('security-name');
+            const ctx = document.getElementById('priceChart').getContext('2d');
+
+            // Fetch data from our API
+            fetch(`/api/securities/${ticker}/`)
+                .then(response => response.json())
+                .then(data => {
+                    securityNameEl.textContent = `${data.name} (${data.ticker})`;
+
+                    // Prepare data for Chart.js
+                    const labels = data.prices.map(p => p.date);
+                    const priceData = data.prices.map(p => ({ x: p.date, o: p.open, h: p.high, l: p.low, c: p.close }));
+                    const sma20Data = data.prices.map(p => ({ x: p.date, y: p.sma_20 }));
+                    const sma50Data = data.prices.map(p => ({ x: p.date, y: p.sma_50 }));
+
+                    // Create the chart
+                    new Chart(ctx, {
+                        type: 'bar', // We will use a bar chart for candlestick representation
+                        data: {
+                            labels: labels,
+                            datasets: [
+                                {
+                                    label: 'Price',
+                                    data: priceData,
+                                    backgroundColor: 'rgba(255, 99, 132, 0.5)',
+                                    borderColor: 'rgba(255, 99, 132, 1)',
+                                    borderWidth: 1
+                                },
+                                {
+                                    label: 'SMA 20',
+                                    type: 'line',
+                                    data: sma20Data,
+                                    borderColor: 'rgba(54, 162, 235, 1)',
+                                    borderWidth: 2,
+                                    fill: false,
+                                    pointRadius: 0
+                                },
+                                {
+                                    label: 'SMA 50',
+                                    type: 'line',
+                                    data: sma50Data,
+                                    borderColor: 'rgba(255, 206, 86, 1)',
+                                    borderWidth: 2,
+                                    fill: false,
+                                    pointRadius: 0
+                                }
+                            ]
+                        },
+                        options: {
+                            scales: {
+                                x: {
+                                    type: 'time',
+                                    time: {
+                                        unit: 'day'
+                                    }
+                                },
+                                y: {
+                                    beginAtZero: false
+                                }
+                            }
+                        }
+                    });
+                })
+                .catch(error => {
+                    console.error('Error fetching security data:', error);
+                    securityNameEl.textContent = "Could not load data.";
+                });
+        });
+    </script>
+
+</body>
+</html>

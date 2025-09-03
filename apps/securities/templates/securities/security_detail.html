@@ -1,115 +1,243 @@
 {% extends 'base.html' %}
 
-{% block title %}Stock Analysis | {{ block.super }}{% endblock %}
-
-{% block head_extra %}
-    <style>
-        .chart-container { background-color: #fff; padding: 2em; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 2em; }
-        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2em; }
-        .card { background-color: #fff; padding: 2em; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .news-item { border-bottom: 1px solid #eee; padding: 1em 0; }
-        .news-item:last-child { border-bottom: none; }
-        .news-item a { text-decoration: none; color: #007bff; font-weight: bold; }
-        .prediction-item { display: flex; justify-content: space-between; padding: 0.5em 0; }
-    </style>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@^4"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@^3"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial@^0.2.0"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@^2.0.1"></script>
+{% block title %}
+{{ security.ticker }} - Stock Analysis
 {% endblock %}
 
 {% block content %}
-    <h1 id="security-name">Loading...</h1>
-
-    <div class="chart-container">
-        <h2>Historical Daily Prices</h2>
-        <canvas id="priceChart"></canvas>
-    </div>
-
-    <div class="chart-container">
-        <h2>Recent Intraday Prices (1-Minute)</h2>
-        <canvas id="intradayChart"></canvas>
-    </div>
-
-    <div class="grid">
-        <div class="card">
-            <h2>Model Predictions</h2>
-            <div id="predictions-list"></div>
+<div class="container mt-4">
+    <!-- Chart Card -->
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <div>
+                <h1 class="h3 mb-0">{{ security.name }} ({{ security.ticker }})</h1>
+                <p class="text-muted mb-0">{{ security.sector }} | {{ security.industry }}</p>
+            </div>
+            {% if user.is_authenticated %}
+                <button id="watchlist-btn" class="btn {% if is_in_watchlist %}btn-danger{% else %}btn-outline-primary{% endif %}" 
+                        data-item-id="{{ security.id }}" 
+                        data-item-type="security">
+                    {% if is_in_watchlist %}
+                        Remove from Watchlist
+                    {% else %}
+                        Add to Watchlist
+                    {% endif %}
+                </button>
+            {% endif %}
         </div>
-        <div class="card">
-            <h2>Recent News</h2>
-            <div id="news-list"></div>
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center flex-wrap">
+                <h5 class="card-title mb-2 mb-md-0">Price and Technical Analysis</h5>
+                <div class="btn-group btn-group-sm mb-2 mb-md-0" role="group" id="time-range-selector">
+                    <button type="button" class="btn btn-outline-primary" data-range="1M">1M</button>
+                    <button type="button" class="btn btn-outline-primary" data-range="6M">6M</button>
+                    <button type="button" class="btn btn-outline-primary" data-range="1Y">1Y</button>
+                    <button type="button" class="btn btn-outline-primary active" data-range="ALL">All</button>
+                </div>
+            </div>
+            <div class="mb-3">
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input indicator-toggle" type="checkbox" id="sma20Toggle" data-dataset-index="1" checked>
+                    <label class="form-check-label" for="sma20Toggle">SMA(20)</label>
+                </div>
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input indicator-toggle" type="checkbox" id="sma50Toggle" data-dataset-index="2" checked>
+                    <label class="form-check-label" for="sma50Toggle">SMA(50)</label>
+                </div>
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input indicator-toggle" type="checkbox" id="rsiToggle" data-dataset-index="3" checked>
+                    <label class="form-check-label" for="rsiToggle">RSI(14)</label>
+                </div>
+                 <div class="form-check form-check-inline">
+                    <input class="form-check-input indicator-toggle" type="checkbox" id="macdToggle" data-dataset-index="4" checked>
+                    <label class="form-check-label" for="macdToggle">MACD</label>
+                </div>
+            </div>
+            <div style="height: 600px;">
+                <canvas id="stockChart"></canvas>
+            </div>
         </div>
     </div>
 
-    <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            const ticker = window.location.pathname.split('/').filter(Boolean).pop();
-            const securityNameEl = document.getElementById('security-name');
-            const newsListEl = document.getElementById('news-list');
-            const predictionsListEl = document.getElementById('predictions-list');
-            const dailyCtx = document.getElementById('priceChart').getContext('2d');
-            const intradayCtx = document.getElementById('intradayChart').getContext('2d');
+    <div class="row">
+        <!-- Prediction Card -->
+        <div class="col-lg-4 mb-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <ul class="nav nav-tabs card-header-tabs" id="prediction-tabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="lstm-tab" data-bs-toggle="tab" data-bs-target="#lstm-content" type="button" role="tab">LSTM</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="arima-tab" data-bs-toggle="tab" data-bs-target="#arima-content" type="button" role="tab">ARIMA</button>
+                        </li>
+                    </ul>
+                </div>
+                <div class="card-body tab-content" id="prediction-tabs-content">
+                    <div class="tab-pane fade show active" id="lstm-content" role="tabpanel">
+                        <div class="d-flex flex-column h-100" id="lstm-prediction-container">
+                            <div class="text-center my-auto"><div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div></div>
+                        </div>
+                    </div>
+                    <div class="tab-pane fade" id="arima-content" role="tabpanel">
+                        <div class="d-flex flex-column h-100" id="arima-prediction-container">
+                            <div class="text-center my-auto"><div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
 
-            fetch(`/api/securities/${ticker}/`)
-                .then(response => response.json())
-                .then(data => {
-                    securityNameEl.textContent = `${data.name} (${data.ticker})`;
-                    if (data.news_articles && data.news_articles.length > 0) {
-                        let newsHtml = '';
-                        data.news_articles.slice(0, 5).forEach(article => {
-                            newsHtml += `<div class="news-item"><a href="${article.url}" target="_blank">${article.headline}</a><p>${article.summary}</p><small>Source: ${article.source} | Sentiment: ${article.sentiment_score.toFixed(2)}</small></div>`;
-                        });
-                        newsListEl.innerHTML = newsHtml;
-                    } else {
-                        newsListEl.innerHTML = '<p>No recent news found.</p>';
-                    }
-                    renderDailyChart(data.prices);
-                })
-                .catch(error => console.error('Error fetching security data:', error));
+        <!-- News and Sentiment Card -->
+        <div class="col-lg-8 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Recent News & Sentiment</h5>
+                </div>
+                <div class="card-body">
+                    <div id="news-articles-container"></div>
+                    <div id="news-loading-spinner" class="text-center mt-3" style="display: none;">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                    <button id="load-more-news" class="btn btn-primary mt-3 w-100" style="display: none;">Load More</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
 
-            fetch(`/api/analysis/${ticker}/predictions/`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data && data.length > 0) {
-                        let predictionsHtml = '';
-                        data.forEach(pred => {
-                            predictionsHtml += `<div class="prediction-item"><span>${pred.prediction_date} (${pred.model_name})</span><strong>${parseFloat(pred.predicted_value).toFixed(2)}</strong></div>`;
-                        });
-                        predictionsListEl.innerHTML = predictionsHtml;
-                    } else {
-                        predictionsListEl.innerHTML = '<p>No predictions available.</p>';
-                    }
-                })
-                .catch(error => console.error('Error fetching predictions:', error));
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom"></script>
 
-            fetch(`/api/securities/${ticker}/intraday/`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data && data.length > 0) {
-                        renderIntradayChart(data);
-                    } else {
-                        document.getElementById('intradayChart').parentElement.innerHTML += '<p>No intraday data found. Run the `fetch_intraday_prices` command.</p>';
-                    }
-                })
-                .catch(error => console.error('Error fetching intraday data:', error));
-
-            function renderDailyChart(prices) {
-                const ohlcData = prices.map(p => ({ x: new Date(p.date).valueOf(), o: p.open, h: p.high, l: p.low, c: p.close })).sort((a, b) => a.x - b.x);
-                const sma50Data = prices.map(p => ({ x: new Date(p.date).valueOf(), y: p.sma_50 })).sort((a, b) => a.x - b.x);
-                new Chart(dailyCtx, {
-                    type: 'candlestick', data: { datasets: [{ label: 'Price (OHLC)', data: ohlcData }, { label: 'SMA 50', type: 'line', data: sma50Data, borderColor: 'rgba(255, 159, 64, 1)', borderWidth: 2, pointRadius: 0, fill: false }] },
-                    options: { scales: { x: { type: 'time', time: { unit: 'day' } } }, plugins: { zoom: { pan: { enabled: true, mode: 'x' }, zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x' } } } }
-                });
+<script>
+// Function to get CSRF token from cookies
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
             }
+        }
+    }
+    return cookieValue;
+}
+const csrftoken = getCookie('csrftoken');
 
-            function renderIntradayChart(prices) {
-                const lineData = prices.map(p => ({ x: new Date(p.datetime).valueOf(), y: p.close }));
-                new Chart(intradayCtx, {
-                    type: 'line', data: { datasets: [{ label: '1-Minute Close Price', data: lineData, borderColor: 'rgba(153, 102, 255, 1)', borderWidth: 2, pointRadius: 0, fill: false }] },
-                    options: { scales: { x: { type: 'time', time: { unit: 'minute' } } }, plugins: { zoom: { pan: { enabled: true, mode: 'x' }, zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x' } } } }
-                });
-            }
+document.addEventListener('DOMContentLoaded', function () {
+    const ticker = "{{ security.ticker }}";
+    
+    // --- Watchlist Logic ---
+    const watchlistBtn = document.getElementById('watchlist-btn');
+    if (watchlistBtn) {
+        watchlistBtn.addEventListener('click', function() {
+            const itemId = this.dataset.itemId;
+            const itemType = this.dataset.itemType;
+            const isInWatchlist = this.classList.contains('btn-danger');
+
+            const method = isInWatchlist ? 'DELETE' : 'POST';
+
+            fetch('/api/watchlist/', {
+                method: method,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrftoken
+                },
+                body: JSON.stringify({ id: itemId, type: itemType })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    if (isInWatchlist) {
+                        this.classList.remove('btn-danger');
+                        this.classList.add('btn-outline-primary');
+                        this.textContent = 'Add to Watchlist';
+                    } else {
+                        this.classList.remove('btn-outline-primary');
+                        this.classList.add('btn-danger');
+                        this.textContent = 'Remove from Watchlist';
+                    }
+                }
+            });
         });
-    </script>
+    }
+
+    // --- Charting Logic ---
+    const analysisUrl = `/api/securities/${ticker}/analysis/`;
+    const ctx = document.getElementById('stockChart').getContext('2d');
+    let stockChart;
+    let allData = [];
+
+    function updateChartRange(range) {
+        if (!stockChart || allData.length === 0) return;
+        const now = new Date();
+        let startDate = new Date();
+        switch(range) {
+            case '1M': startDate.setMonth(now.getMonth() - 1); break;
+            case '6M': startDate.setMonth(now.getMonth() - 6); break;
+            case '1Y': startDate.setFullYear(now.getFullYear() - 1); break;
+            case 'ALL': default: startDate = new Date(allData[0].date); break;
+        }
+        stockChart.options.scales.x.min = startDate.getTime();
+        stockChart.options.scales.x.max = now.getTime();
+        stockChart.update();
+    }
+
+    fetch(analysisUrl).then(response => response.ok ? response.json() : Promise.reject(response)).then(data => {
+        if (!data || data.length === 0) {
+            document.getElementById('stockChart').parentElement.innerHTML = '<p class="text-center">No analysis data available.</p>';
+            return;
+        }
+        allData = data;
+        const ohlcData = allData.map(d => ({ x: new Date(d.date).getTime(), o: d.open, h: d.high, l: d.low, c: d.close }));
+        const sma20Data = allData.map(d => ({ x: new Date(d.date).getTime(), y: d.SMA_20 }));
+        const sma50Data = allData.map(d => ({ x: new Date(d.date).getTime(), y: d.SMA_50 }));
+        const rsiData = allData.map(d => ({ x: new Date(d.date).getTime(), y: d.RSI_14 }));
+        const macdData = allData.map(d => ({ x: new Date(d.date).getTime(), y: d.MACD_12_26_9 }));
+        const macdSignalData = allData.map(d => ({ x: new Date(d.date).getTime(), y: d.MACDs_12_26_9 }));
+        const macdHistData = allData.map(d => ({ x: new Date(d.date).getTime(), y: d.MACDh_12_26_9 }));
+        stockChart = new Chart(ctx, {
+            type: 'candlestick',
+            data: { datasets: [ { label: 'OHLC', data: ohlcData, yAxisID: 'yPrice' }, { label: 'SMA(20)', type: 'line', data: sma20Data, borderColor: '#ffc107', borderWidth: 1, pointRadius: 0, yAxisID: 'yPrice' }, { label: 'SMA(50)', type: 'line', data: sma50Data, borderColor: '#007bff', borderWidth: 1, pointRadius: 0, yAxisID: 'yPrice' }, { label: 'RSI(14)', type: 'line', data: rsiData, borderColor: '#6f42c1', borderWidth: 1, pointRadius: 0, yAxisID: 'yRSI' }, { label: 'MACD', type: 'line', data: macdData, borderColor: '#20c997', borderWidth: 1, pointRadius: 0, yAxisID: 'yMACD' }, { label: 'MACD Signal', type: 'line', data: macdSignalData, borderColor: '#fd7e14', borderWidth: 1, pointRadius: 0, yAxisID: 'yMACD' }, { label: 'MACD Hist', type: 'bar', data: macdHistData, backgroundColor: 'rgba(255, 99, 132, 0.5)', yAxisID: 'yMACD' } ] },
+            options: { responsive: true, maintainAspectRatio: false, scales: { x: { type: 'time', time: { unit: 'day' }, adapters: { date: { locale: 'en-US' } }, grid: { display: false } }, yPrice: { type: 'linear', position: 'left', title: { display: true, text: 'Price (INR)' }, height: '60%' }, yRSI: { type: 'linear', position: 'left', title: { display: true, text: 'RSI' }, height: '20%', min: 0, max: 100, offset: true }, yMACD: { type: 'linear', position: 'left', title: { display: true, text: 'MACD' }, height: '20%', offset: true } }, plugins: { tooltip: { mode: 'index', intersect: false }, legend: { display: false }, zoom: { pan: { enabled: true, mode: 'x' }, zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x' } } } }
+        });
+        document.querySelectorAll('.indicator-toggle').forEach(t => t.addEventListener('change', function() { const i = parseInt(this.dataset.index); stockChart.setDatasetVisibility(i, this.checked); if (this.id === 'macdToggle') { stockChart.setDatasetVisibility(5, this.checked); stockChart.setDatasetVisibility(6, this.checked); } stockChart.update(); }));
+        document.querySelectorAll('#time-range-selector button').forEach(b => b.addEventListener('click', function() { document.querySelector('#time-range-selector .active').classList.remove('active'); this.classList.add('active'); updateChartRange(this.dataset.range); }));
+        updateChartRange('ALL');
+    }).catch(e => { console.error('Chart Error:', e); document.getElementById('stockChart').parentElement.innerHTML = '<p class="text-center text-danger">Could not load chart.</p>'; });
+
+    // --- News Fetching Logic ---
+    const newsContainer = document.getElementById('news-articles-container');
+    const loadMoreButton = document.getElementById('load-more-news');
+    const newsSpinner = document.getElementById('news-loading-spinner');
+    let nextNewsUrl = `/api/securities/${ticker}/news/`;
+    function fetchNews() { if (!nextNewsUrl) return; newsSpinner.style.display = 'block'; loadMoreButton.style.display = 'none'; fetch(nextNewsUrl).then(r => r.ok ? r.json() : Promise.reject(r)).then(d => { newsSpinner.style.display = 'none'; if (d.results.length === 0 && !newsContainer.hasChildNodes()) { newsContainer.innerHTML = '<p class="text-center">No news found.</p>'; return; } d.results.forEach(a => { const el = document.createElement('div'); el.className = 'mb-3 border-bottom pb-2'; el.innerHTML = `<h6><a href="${a.url}" target="_blank">${a.headline}</a></h6><p class="mb-1">${a.summary}</p><small class="text-muted">${new Date(a.published_at).toLocaleString()} - ${a.source}</small><div class="mt-1">Sentiment: ${getSentimentBadge(a.sentiment_score)}</div>`; newsContainer.appendChild(el); }); nextNewsUrl = d.next; if (nextNewsUrl) { loadMoreButton.style.display = 'block'; } else { loadMoreButton.style.display = 'none'; } }).catch(e => { console.error('News Error:', e); newsSpinner.style.display = 'none'; newsContainer.innerHTML = '<p class="text-center text-danger">Could not load news.</p>'; }); }
+    loadMoreButton.addEventListener('click', fetchNews);
+    fetchNews();
+
+    // --- Prediction Fetching Logic ---
+    function fetchPrediction(modelType) {
+        const url = modelType === 'lstm' ? `/api/securities/${ticker}/predict_lstm/` : `/api/securities/${ticker}/predict/`;
+        const container = document.getElementById(`${modelType}-prediction-container`);
+        fetch(url).then(r => r.status === 404 ? Promise.reject('Model not trained.') : !r.ok ? Promise.reject('Could not load prediction.') : r.json()).then(d => {
+            let icon = '', color = 'text-dark';
+            if (d.trend === 'Up') { icon = '▲'; color = 'text-success'; }
+            else if (d.trend === 'Down') { icon = '▼'; color = 'text-danger'; }
+            container.innerHTML = `<div class="text-center my-auto"><h4 class="mb-1 ${color}">${icon} ${d.trend}</h4><p class="mb-0">Forecast: <strong>₹${d.predicted_value.toFixed(2)}</strong></p><small class="text-muted">Last Close: ₹${d.last_close.toFixed(2)}</small></div><p class="text-muted small mt-auto pt-3"><strong>Disclaimer:</strong> For informational purposes only. Not financial advice.</p>`;
+        }).catch(e => { container.innerHTML = `<div class="text-center my-auto"><p class="text-muted">${e}</p></div>`; });
+    }
+    fetchPrediction('lstm');
+    fetchPrediction('arima');
+});
+function getSentimentBadge(score) { if (score === null) return '<span class="badge bg-secondary">N/A</span>'; if (score > 0.2) return `<span class="badge bg-success">Positive (${score.toFixed(2)})</span>`; if (score < -0.2) return `<span class="badge bg-danger">Negative (${score.toFixed(2)})</span>`; return `<span class="badge bg-warning text-dark">Neutral (${score.toFixed(2)})</span>`; }
+</script>
 {% endblock %}

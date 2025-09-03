@@ -1,71 +1,55 @@
 import pandas as pd
+import joblib
+from pathlib import Path
+from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 from statsmodels.tsa.arima.model import ARIMA
-from tqdm import tqdm
 from apps.securities.models import Security, SecurityPrice
-from apps.analysis.models import Prediction
-import datetime
-import warnings
 
-# Suppress the specific, known warnings from statsmodels to keep the output clean
-warnings.filterwarnings("ignore", message="A date index has been provided, but it has no associated frequency information")
-warnings.filterwarnings("ignore", message="No supported index is available. Prediction results will be given with an integer index beginning at `start`.")
+# Define the directory to save trained models
+MODEL_DIR = Path(settings.BASE_DIR) / "apps" / "analysis" / "models"
+MODEL_DIR.mkdir(parents=True, exist_ok=True)
 
 class Command(BaseCommand):
-    """This command trains an ARIMA model and generates future price predictions."""
-    help = 'Trains an ARIMA model and generates future price predictions for one or all securities.'
+    """
+    Trains and saves a simple ARIMA model for a given security.
+    """
+    help = 'Trains a time-series forecasting model for a specified security ticker.'
 
     def add_arguments(self, parser):
-        parser.add_argument('ticker', nargs='?', type=str, help='Optional ticker symbol to model.')
-        parser.add_argument('--all', action='store_true', help='Generate predictions for all securities.')
-        parser.add_argument('--days', type=int, default=5, help='Number of future days to predict.')
+        parser.add_argument('ticker', type=str, help='The ticker symbol of the security to train a model for.')
 
     def handle(self, *args, **options):
-        forecast_days = options['days']
-        securities_to_process = []
-
-        if options['all']:
-            securities_to_process = Security.objects.all()
-            self.stdout.write(self.style.SUCCESS(f"Generating ARIMA predictions for all {securities_to_process.count()} securities..."))
-        elif options['ticker']:
-            try:
-                security = Security.objects.get(ticker=options['ticker'].split('.')[0])
-                securities_to_process.append(security)
-            except Security.DoesNotExist:
-                raise CommandError(f"Security {options['ticker']} not found.")
-        else:
-            raise CommandError("No ticker specified. Provide a ticker or use the --all flag.")
-
-        for security in tqdm(securities_to_process, desc="ARIMA Predictions"):
-            self.predict_for_security(security, forecast_days)
-
-    def predict_for_security(self, security, forecast_days):
-        prices = SecurityPrice.objects.filter(security=security).order_by('date').values_list('date', 'adj_close')
-        if prices.count() < 50:
-            return
-
-        # --- CRITICAL FIX: Create a pandas Series with a proper DatetimeIndex and set frequency ---
-        dates = [p[0] for p in prices]
-        values = [float(p[1]) for p in prices]
-        ts_data = pd.Series(values, index=pd.to_datetime(dates))
-        # Use 'B' for Business Day frequency. Forward-fill missing values (holidays).
-        ts_data = ts_data.asfreq('B', method='ffill')
+        ticker = options['ticker'].upper()
 
         try:
-            model = ARIMA(ts_data, order=(5, 1, 0))
+            security = Security.objects.get(ticker=ticker)
+        except Security.DoesNotExist:
+            raise CommandError(f'Security with ticker "{ticker}" does not exist.')
+
+        # Fetch historical data
+        prices = SecurityPrice.objects.filter(security=security).order_by('date').values_list('date', 'close')
+        if prices.count() < 100: # Need sufficient data for training
+            raise CommandError(f'Not enough historical data for "{ticker}" to train a model (found {prices.count()} data points).')
+
+        self.stdout.write(f"Found {prices.count()} data points for {ticker}. Preparing data...")
+        
+        # Convert to a pandas Series
+        data = pd.Series([price[1] for price in prices], index=[price[0] for price in prices])
+        data = data.astype(float)
+
+        self.stdout.write("Training ARIMA(5,1,0) model...")
+
+        try:
+            # A simple ARIMA model configuration (p=5, d=1, q=0)
+            model = ARIMA(data, order=(5, 1, 0))
             model_fit = model.fit()
-            forecast = model_fit.forecast(steps=forecast_days)
 
-            last_date = ts_data.index[-1]
-            # Generate future dates based on the business day frequency
-            future_dates = pd.bdate_range(start=last_date + pd.Timedelta(days=1), periods=forecast_days)
+            # Save the trained model
+            model_path = MODEL_DIR / f'{ticker}_arima.joblib'
+            joblib.dump(model_fit, model_path)
 
-            for i in range(forecast_days):
-                Prediction.objects.update_or_create(
-                    security=security,
-                    model_name='ARIMA',
-                    prediction_date=future_dates[i].date(),
-                    defaults={'predicted_value': forecast.iloc[i]}
-                )
         except Exception as e:
-            self.stderr.write(self.style.ERROR(f"\nCould not generate ARIMA prediction for {security.ticker}. Error: {e}"))
+            raise CommandError(f"An error occurred during model training: {e}")
+
+        self.stdout.write(self.style.SUCCESS(f'Successfully trained and saved ARIMA model for {ticker} to {model_path}'))

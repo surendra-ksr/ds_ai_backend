@@ -7,12 +7,14 @@ api_urlpatterns = [
     path('', include('apps.securities.api_urls')),
     path('', include('apps.mutual_funds.api_urls')),
     path('', include('apps.analysis.api_urls')),
+    path('', include('apps.users.api_urls')), # Add user watchlist API
 ]
 
 # Frontend routes for user-facing web pages
 frontend_urlpatterns = [
     path('', include('apps.securities.urls')),
     path('', include('apps.mutual_funds.urls')),
+    path('accounts/', include('apps.users.urls')), # Add user auth routes
 ]
 
 # Main URL patterns

@@ -1,80 +1,153 @@
 {% extends 'base.html' %}
 
-{% block title %}Mutual Fund Analysis | {{ block.super }}{% endblock %}
-
-{% block head_extra %}
-    <style>
-        .grid { display: grid; grid-template-columns: 2fr 1fr; gap: 2em; }
-        .chart-container { background-color: #fff; padding: 2em; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .card { background-color: #fff; padding: 2em; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .performance-item { display: flex; justify-content: space-between; padding: 0.75em 0; border-bottom: 1px solid #eee; }
-        .performance-item:last-child { border-bottom: none; }
-        .performance-item span { font-weight: bold; color: #007bff; }
-    </style>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@^4"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@^3"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@^2.0.1"></script>
+{% block title %}
+{{ scheme.name }} - Mutual Fund Details
 {% endblock %}
 
 {% block content %}
-    <h1 id="scheme-name">Loading...</h1>
-
-    <div class="grid">
-        <div class="chart-container">
-            <h2>Historical Net Asset Value (NAV)</h2>
-            <canvas id="navChart"></canvas>
-        </div>
-        <div class="card">
-            <h2>Performance</h2>
-            <div id="performance-list"></div>
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <div>
+                        <h1 class="h3 mb-0">{{ scheme.name }}</h1>
+                        <p class="text-muted mb-0">{{ scheme.fund_house.name }} | {{ scheme.scheme_code }}</p>
+                    </div>
+                    {% if user.is_authenticated %}
+                        <button id="watchlist-btn" class="btn {% if is_in_watchlist %}btn-danger{% else %}btn-outline-primary{% endif %}" 
+                                data-item-id="{{ scheme.id }}" 
+                                data-item-type="mutual_fund">
+                            {% if is_in_watchlist %}
+                                Remove from Watchlist
+                            {% else %}
+                                Add to Watchlist
+                            {% endif %}
+                        </button>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    <h5 class="card-title">Net Asset Value (NAV) History</h5>
+                    <div style="height: 500px;">
+                        <canvas id="navChart"></canvas>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
+</div>
+{% endblock %}
 
-    <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            const schemeCode = window.location.pathname.split('/').filter(Boolean).pop();
-            const schemeNameEl = document.getElementById('scheme-name');
-            const performanceListEl = document.getElementById('performance-list');
-            const ctx = document.getElementById('navChart').getContext('2d');
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
 
-            fetch(`/api/mutual-funds/${schemeCode}/`)
-                .then(response => response.json())
-                .then(data => {
-                    schemeNameEl.textContent = data.name;
+<script>
+// Function to get CSRF token from cookies
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+const csrftoken = getCookie('csrftoken');
 
-                    // Render Performance Data
-                    if (data.performance) {
-                        let perfHtml = '';
-                        const perf_items = [
-                            { label: '1-Year Return', value: data.performance.return_1y },
-                            { label: '3-Year Ann. Return', value: data.performance.return_3y },
-                            { label: '5-Year Ann. Return', value: data.performance.return_5y },
-                            { label: 'Year-to-Date Return', value: data.performance.ytd_return },
-                        ];
-                        perf_items.forEach(item => {
-                            if (item.value !== null) {
-                                perfHtml += `<div class="performance-item">${item.label} <span>${item.value.toFixed(2)}%</span></div>`;
-                            }
-                        });
-                        performanceListEl.innerHTML = perfHtml;
+document.addEventListener('DOMContentLoaded', function () {
+    // --- Watchlist Logic ---
+    const watchlistBtn = document.getElementById('watchlist-btn');
+    if (watchlistBtn) {
+        watchlistBtn.addEventListener('click', function() {
+            const itemId = this.dataset.itemId;
+            const itemType = this.dataset.itemType;
+            const isInWatchlist = this.classList.contains('btn-danger');
+
+            const method = isInWatchlist ? 'DELETE' : 'POST';
+
+            fetch('/api/watchlist/', {
+                method: method,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrftoken
+                },
+                body: JSON.stringify({ id: itemId, type: itemType })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    if (isInWatchlist) {
+                        this.classList.remove('btn-danger');
+                        this.classList.add('btn-outline-primary');
+                        this.textContent = 'Add to Watchlist';
                     } else {
-                        performanceListEl.innerHTML = '<p>No performance data available. Run the `calculate_mf_performance` command.</p>';
+                        this.classList.remove('btn-outline-primary');
+                        this.classList.add('btn-danger');
+                        this.textContent = 'Remove from Watchlist';
                     }
-
-                    // Render NAV Chart
-                    const navData = data.navs.map(n => ({ x: new Date(n.date).valueOf(), y: parseFloat(n.nav) })).sort((a, b) => a.x - b.x);
-                    new Chart(ctx, {
-                        type: 'line',
-                        data: { datasets: [{ label: 'NAV', data: navData, borderColor: 'rgba(75, 192, 192, 1)', borderWidth: 2, pointRadius: 0, fill: true, backgroundColor: 'rgba(75, 192, 192, 0.2)' }] },
-                        options: {
-                            scales: { x: { type: 'time', time: { unit: 'day' } }, y: { ticks: { callback: function(value) { return '₹' + value; } } } },
-                            plugins: { zoom: { pan: { enabled: true, mode: 'x' }, zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x' } } } }
-                    });
-                })
-                .catch(error => {
-                    console.error('Error fetching mutual fund data:', error);
-                    schemeNameEl.textContent = "Could not load mutual fund data.";
-                });
+                }
+            });
         });
-    </script>
+    }
+
+    // --- Charting Logic ---
+    const schemeCode = "{{ scheme.scheme_code }}";
+    const initialUrl = `/api/mutual-funds/${schemeCode}/history/`;
+    const chartCanvas = document.getElementById('navChart').getContext('2d');
+    let navChart;
+
+    async function fetchAllPages(url) {
+        let results = [];
+        let nextUrl = url;
+        while (nextUrl) {
+            const response = await fetch(nextUrl);
+            if (!response.ok) { return []; }
+            const data = await response.json();
+            results = results.concat(data.results);
+            nextUrl = data.next;
+        }
+        return results;
+    }
+
+    fetchAllPages(initialUrl).then(navData => {
+        if (navData.length === 0) {
+            const cardBody = document.querySelector('.card-body');
+            cardBody.innerHTML = '<p class="text-center">No NAV data available for this scheme.</p>';
+            return;
+        }
+
+        const labels = navData.map(item => item.date);
+        const dataPoints = navData.map(item => item.nav);
+
+        navChart = new Chart(chartCanvas, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'NAV',
+                    data: dataPoints,
+                    borderColor: 'rgb(75, 192, 192)',
+                    tension: 0.1,
+                    pointRadius: 0,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: { type: 'time', time: { unit: 'year' }, title: { display: true, text: 'Date' } },
+                    y: { title: { display: true, text: 'NAV (₹)' } }
+                },
+                plugins: { tooltip: { mode: 'index', intersect: false } }
+            }
+        });
+    });
+});
+</script>
 {% endblock %}

@@ -24,6 +24,8 @@ INSTALLED_APPS = [
     # 3rd Party Apps
     'rest_framework',
     'django_apscheduler',
+    'crispy_forms',
+    'crispy_bootstrap5',
 
     # Local Apps
     'apps.core',
@@ -95,3 +97,12 @@ STATIC_URL = 'static/'
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Crispy Forms Settings
+CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"
+CRISPY_TEMPLATE_PACK = "bootstrap5"
+
+# Auth Settings
+LOGIN_URL = 'login'
+LOGIN_REDIRECT_URL = 'security-list' # Redirect to homepage after login
+LOGOUT_REDIRECT_URL = 'security-list' # Redirect to homepage after logout

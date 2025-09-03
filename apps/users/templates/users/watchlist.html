@@ -1,0 +1,127 @@
+{% extends 'base.html' %}
+
+{% block title %}My Watchlist{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="mb-4">My Watchlist</h1>
+
+    <!-- Securities Table -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">Tracked Securities</h5>
+        </div>
+        <div class="card-body">
+            {% if securities %}
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead>
+                            <tr>
+                                <th>Ticker</th>
+                                <th>Name</th>
+                                <th class="text-end">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for security in securities %}
+                                <tr id="watchlist-item-security-{{ security.id }}">
+                                    <td><a href="{% url 'security-detail' security.ticker %}">{{ security.ticker }}</a></td>
+                                    <td>{{ security.name }}</td>
+                                    <td class="text-end"><button class="btn btn-sm btn-danger remove-from-watchlist" data-type="security" data-id="{{ security.id }}">Remove</button></td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p class="text-center text-muted">You are not tracking any securities. Find a security and add it to your watchlist.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Mutual Funds Table -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">Tracked Mutual Funds</h5>
+        </div>
+        <div class="card-body">
+            {% if mutual_funds %}
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead>
+                            <tr>
+                                <th>Scheme Code</th>
+                                <th>Name</th>
+                                <th class="text-end">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for mf in mutual_funds %}
+                                <tr id="watchlist-item-mutual_fund-{{ mf.id }}">
+                                    <td><a href="{% url 'mutual-fund-detail' mf.scheme_code %}">{{ mf.scheme_code }}</a></td>
+                                    <td>{{ mf.name }}</td>
+                                    <td class="text-end"><button class="btn btn-sm btn-danger remove-from-watchlist" data-type="mutual_fund" data-id="{{ mf.id }}">Remove</button></td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p class="text-center text-muted">You are not tracking any mutual funds.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Function to get CSRF token from cookies
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+const csrftoken = getCookie('csrftoken');
+
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.remove-from-watchlist').forEach(button => {
+        button.addEventListener('click', function() {
+            const itemId = this.dataset.id;
+            const itemType = this.dataset.type;
+
+            if (!confirm('Are you sure you want to remove this item from your watchlist?')) {
+                return;
+            }
+
+            fetch('/api/watchlist/', {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrftoken
+                },
+                body: JSON.stringify({ id: itemId, type: itemType })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    // Remove the table row from the DOM
+                    document.getElementById(`watchlist-item-${itemType}-${itemId}`).remove();
+                } else {
+                    alert('Could not remove item. Please try again.');
+                }
+            });
+        });
+    });
+});
+</script>
+{% endblock %}

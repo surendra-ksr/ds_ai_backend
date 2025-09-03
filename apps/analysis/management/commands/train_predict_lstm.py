@@ -1,102 +1,88 @@
 import numpy as np
 import pandas as pd
+import joblib
+from pathlib import Path
+from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
-from sklearn.preprocessing import MinMaxScaler
+
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, Dropout
-from apps.securities.models import Security, SecurityPrice
-from apps.analysis.models import Prediction
-import datetime
+from sklearn.preprocessing import MinMaxScaler
 
-# Number of past days of data to use for predicting the next day
+from apps.analysis.data_processing import prepare_lstm_data
+
+# Define the directory to save trained models and scalers
+MODEL_DIR = Path(settings.BASE_DIR) / "apps" / "analysis" / "models"
+MODEL_DIR.mkdir(parents=True, exist_ok=True)
+
+# --- Model & Training Configuration ---
 SEQUENCE_LENGTH = 60
+EPOCHS = 50
+BATCH_SIZE = 32
 
 class Command(BaseCommand):
-    help = 'Trains an LSTM model and generates future price predictions.'
+    """
+    Trains and saves an LSTM model for a given security, including sentiment analysis features.
+    """
+    help = 'Trains an LSTM forecasting model for a specified security ticker.'
 
     def add_arguments(self, parser):
-        parser.add_argument('ticker', type=str, help='The ticker symbol to model.')
-        parser.add_argument('--days', type=int, default=5, help='Number of future days to predict.')
+        parser.add_argument('ticker', type=str, help='The ticker symbol of the security to train a model for.')
 
     def handle(self, *args, **options):
-        ticker_symbol = options['ticker']
-        forecast_days = options['days']
+        ticker = options['ticker'].upper()
 
-        self.stdout.write(f"Starting LSTM prediction for {ticker_symbol}...")
+        self.stdout.write(f"Preparing data for {ticker}...")
+        df = prepare_lstm_data(ticker)
 
-        try:
-            security = Security.objects.get(ticker=ticker_symbol.split('.')[0])
-        except Security.DoesNotExist:
-            raise CommandError(f"Security {ticker_symbol} not found.")
+        if df is None or df.empty:
+            raise CommandError(f"Could not prepare data for {ticker}. Not enough data points or security does not exist.")
 
-        # 1. Data Loading and Preparation
-        prices = SecurityPrice.objects.filter(security=security).order_by('date')
-        if prices.count() < SEQUENCE_LENGTH:
-            raise CommandError(f"Not enough data for {ticker_symbol}. Need at least {SEQUENCE_LENGTH} days.")
+        # The target variable we want to predict
+        target_column = 'close'
+        # Drop non-numeric columns if any exist before scaling
+        df = df.select_dtypes(include=np.number)
 
-        df = pd.DataFrame.from_records(prices.values('date', 'adj_close', 'volume', 'sma_50', 'rsi'))
-        df.set_index('date', inplace=True)
-        df.fillna(method='ffill', inplace=True) # Fill any missing indicator values
-
-        # 2. Preprocessing and Scaling
+        # --- Data Scaling ---
         scaler = MinMaxScaler(feature_range=(0, 1))
         scaled_data = scaler.fit_transform(df)
 
-        # 3. Create Training Sequences
-        x_train, y_train = [], []
+        # Save the scaler for this ticker
+        scaler_path = MODEL_DIR / f'{ticker}_lstm_scaler.joblib'
+        joblib.dump(scaler, scaler_path)
+        self.stdout.write(self.style.SUCCESS(f"Scaler saved to {scaler_path}"))
+
+        # --- Sequence Creation ---
+        X, y = [], []
         for i in range(SEQUENCE_LENGTH, len(scaled_data)):
-            x_train.append(scaled_data[i-SEQUENCE_LENGTH:i, :])
-            y_train.append(scaled_data[i, 0]) # Predicting the 'adj_close' price
+            X.append(scaled_data[i-SEQUENCE_LENGTH:i])
+            # The target is the 'close' price, get its index
+            target_col_index = df.columns.get_loc(target_column)
+            y.append(scaled_data[i, target_col_index])
 
-        x_train, y_train = np.array(x_train), np.array(y_train)
+        X, y = np.array(X), np.array(y)
 
-        # 4. Model Architecture
+        self.stdout.write(f"Created {X.shape[0]} sequences of length {X.shape[1]}.")
+
+        # --- LSTM Model Architecture ---
         model = Sequential([
-            LSTM(units=50, return_sequences=True, input_shape=(x_train.shape[1], x_train.shape[2])),
+            LSTM(units=50, return_sequences=True, input_shape=(X.shape[1], X.shape[2])),
             Dropout(0.2),
             LSTM(units=50, return_sequences=False),
             Dropout(0.2),
             Dense(units=25),
             Dense(units=1)
         ])
+
         model.compile(optimizer='adam', loss='mean_squared_error')
+        model.summary()
 
-        # 5. Training
-        self.stdout.write("Training LSTM model... (This can be time-consuming)")
-        model.fit(x_train, y_train, batch_size=32, epochs=20) # Epochs can be increased for better accuracy
+        # --- Model Training ---
+        self.stdout.write(f"Training LSTM model for {ticker}...")
+        model.fit(X, y, epochs=EPOCHS, batch_size=BATCH_SIZE, verbose=1)
 
-        # 6. Prediction
-        self.stdout.write(self.style.SUCCESS("Model training complete. Generating forecast."))
-        
-        last_sequence = scaled_data[-SEQUENCE_LENGTH:]
-        current_batch = np.reshape(last_sequence, (1, SEQUENCE_LENGTH, x_train.shape[2]))
-        
-        future_predictions = []
-        for i in range(forecast_days):
-            # Predict the next value
-            next_prediction = model.predict(current_batch)[0]
-            future_predictions.append(next_prediction[0])
-            
-            # Create a new sequence for the next prediction
-            new_row = np.append(current_batch[0, -1, 1:], next_prediction) # Append predicted price, shift others
-            new_sequence = np.append(current_batch[0, 1:, :], [new_row], axis=0)
-            current_batch = np.reshape(new_sequence, (1, SEQUENCE_LENGTH, x_train.shape[2]))
+        # --- Saving the Model ---
+        model_path = MODEL_DIR / f'{ticker}_lstm_model.h5'
+        model.save(model_path)
 
-        # Inverse transform to get actual price values
-        # We need to create a dummy array with the same shape as the scaler expects
-        dummy_array = np.zeros((len(future_predictions), df.shape[1]))
-        dummy_array[:, 0] = future_predictions
-        actual_predictions = scaler.inverse_transform(dummy_array)[:, 0]
-
-        # 7. Saving Results
-        last_date = df.index[-1]
-        for i in range(forecast_days):
-            prediction_date = last_date.date() + datetime.timedelta(days=i + 1)
-            Prediction.objects.update_or_create(
-                security=security,
-                model_name='LSTM',
-                prediction_date=prediction_date,
-                defaults={'predicted_value': actual_predictions[i]}
-            )
-
-        self.stdout.write(self.style.SUCCESS(f"Successfully saved {forecast_days} LSTM predictions for {ticker_symbol}."))
+        self.stdout.write(self.style.SUCCESS(f'Successfully trained and saved LSTM model for {ticker} to {model_path}'))

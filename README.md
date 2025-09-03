@@ -6,14 +6,17 @@ Welcome to Dalal Street AI, a comprehensive platform for data-driven analysis an
 
 ## Features
 
-- **Robust Data Pipeline**: A suite of powerful management commands to automatically fetch and process data for stocks, mutual funds, and news.
-- **Advanced Analytical Core**: The backend can calculate key technical indicators (SMA, RSI, MACD, Bollinger Bands) and perform sentiment analysis on news articles.
-- **Predictive Engine**: Includes both ARIMA and LSTM models to generate price forecasts.
+- **Robust Data Pipeline**: A suite of powerful management commands to automatically fetch and process data for stocks (historical & intraday), mutual funds (schemes & NAVs), and financial news.
+- **Advanced Analytical Core**: The backend calculates key technical indicators (SMA, RSI, MACD, Bollinger Bands) and performs sentiment analysis on news articles using spaCy.
+- **Dual Predictive Engine**: Includes two distinct predictive models:
+    - A baseline **ARIMA** model for classical time-series forecasting.
+    - An advanced **LSTM** neural network that incorporates price data, technical indicators, and news sentiment for a more holistic forecast.
 - **Interactive Web Interface**: A clean, user-friendly UI built with Django and Chart.js, featuring:
     - A homepage listing all securities and mutual funds.
-    - A detailed stock dashboard with zoomable candlestick and intraday charts, news, and predictions.
-    - A detailed mutual fund page with a zoomable NAV chart and historical performance metrics.
-- **REST API**: A well-structured API built with Django REST Framework to expose all backend data.
+    - A detailed stock dashboard with zoomable, time-range-selectable candlestick charts, news, and dual model predictions.
+    - A detailed mutual fund page with a zoomable NAV chart.
+- **Full User Authentication & Watchlists**: Users can register, log in, and manage a personal watchlist of their favorite securities and mutual funds.
+- **REST API**: A well-structured API built with Django REST Framework to expose all backend data and power the interactive frontend.
 
 ---
 
@@ -21,10 +24,9 @@ Welcome to Dalal Street AI, a comprehensive platform for data-driven analysis an
 
 - **Backend**: Django, Django REST Framework
 - **Database**: PostgreSQL
-- **Data Analysis**: Pandas, NumPy
-- **Machine Learning**: Scikit-learn, TensorFlow, Statsmodels
-- **Asynchronous Tasks**: Celery, Redis (planned, not yet implemented)
-- **Frontend**: Django Templates, Chart.js
+- **Data Analysis**: Pandas, NumPy, spaCy
+- **Machine Learning**: Scikit-learn, TensorFlow (Keras), Statsmodels
+- **Frontend**: Django Templates, Bootstrap 5, Chart.js
 
 ---
 
@@ -55,67 +57,53 @@ Follow these steps to get the project running locally.
 ### 2. Environment Configuration
 
 - **Create a `.env` file** in the project root.
-- **Add your database credentials and API keys** to the `.env` file:
+- **Add your database credentials and a secret key** to the `.env` file:
   ```
   # .env
-  SECRET_KEY='your-secret-key'
-  NEWS_API_KEY='your-key-from-newsapi-org'
-  MARKETAUX_API_KEY='your-key-from-marketaux'
+  SECRET_KEY='your-django-secret-key'
+  LOCAL_DB_PASSWORD='your-postgres-password'
+  # Optional, for fetching live news
+  NEWSDATA_API_KEY='your-key-from-newsdata.io'
   ```
-- **Update the database settings** in `config/settings/base.py` to match your PostgreSQL setup.
 
 ### 3. Database Initialization
 
-- **Create the database migrations**:
-  ```sh
-  python manage.py makemigrations
-  ```
 - **Apply the migrations** to create the database tables:
   ```sh
   python manage.py migrate
   ```
-- **Seed the initial category data** (run this only once):
-  ```sh
-  python manage.py seed_categories
-  ```
 
 ---
 
-## Usage: The Automated Data Pipeline
+## Usage: Data Population and Model Training
 
-Run these commands in order to populate your database with all the necessary data. All commands support progress bars.
+Run these management commands to populate your database and train the predictive models. You can run them for individual tickers or use the `--all` flag where available.
 
-1.  **Fetch All Stock Data**:
+1.  **Fetch Securities & Mutual Fund Schemes**:
     ```sh
-    python manage.py fetch_prices --all-major
-    ```
-2.  **Fetch All Mutual Fund Schemes**:
-    ```sh
+    # Fetch a list of all major stocks
+    python manage.py fetch_securities
+    # Fetch a list of all mutual fund schemes
     python manage.py fetch_mf_schemes
     ```
-3.  **Fetch All Mutual Fund Price History (NAV)**:
+2.  **Fetch Historical Price Data**:
     ```sh
+    # For all stocks
+    python manage.py fetch_prices --all
+    # For all mutual funds
     python manage.py fetch_mf_navs --all
     ```
-4.  **Calculate All Stock Indicators**:
+3.  **Fetch News & Analyze Sentiment**:
     ```sh
-    python manage.py calculate_indicators --all
+    # For a specific stock (uses mock data if no API key is set)
+    python manage.py fetch_news_articles RELIANCE
     ```
-5.  **Calculate All Mutual Fund Performance Metrics**:
+4.  **Train Predictive Models**:
     ```sh
-    python manage.py calculate_mf_performance --all
-    ```
-6.  **Fetch News for All Stocks**:
-    ```sh
-    python manage.py fetch_news_sentiment --all
-    ```
-7.  **Generate Predictions for All Stocks**:
-    ```sh
-    python manage.py train_predict_arima --all
-    ```
-8.  **Fetch Intraday Data for All Stocks**:
-    ```sh
-    python manage.py fetch_intraday_prices --all
+    # Train the ARIMA model for a stock
+    python manage.py train_predict_arima RELIANCE
+    # Train the LSTM model for a stock
+    python manage.py train_predict_lstm RELIANCE
     ```
 
 ---
@@ -128,5 +116,6 @@ Run these commands in order to populate your database with all the necessary dat
     ```
 2.  **Explore the application** in your browser:
     - **Homepage**: `http://127.0.0.1:8000/`
+    - **Register**: `http://127.0.0.1:8000/accounts/register/`
     - **Stock Detail**: `http://127.0.0.1:8000/securities/RELIANCE/`
     - **Mutual Funds**: `http://127.0.0.1:8000/mutual-funds/`

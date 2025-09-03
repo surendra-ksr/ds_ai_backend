@@ -13,7 +13,9 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         securities_to_process = []
-        if options['all']:
+        is_bulk = options['all']
+
+        if is_bulk:
             securities_to_process = Security.objects.all()
             self.stdout.write(self.style.SUCCESS(f"Fetching last 7 days of intraday data for all {securities_to_process.count()} securities..."))
         elif options['ticker']:
@@ -26,14 +28,15 @@ class Command(BaseCommand):
             raise CommandError("No ticker specified. Provide a ticker or use the --all flag.")
 
         for security in tqdm(securities_to_process, desc="Fetching Intraday Prices"):
-            self.fetch_for_security(security)
+            self.fetch_for_security(security, is_bulk)
 
-    def fetch_for_security(self, security):
+    def fetch_for_security(self, security, is_bulk):
         try:
-            # --- CRITICAL FIX: Request a 7-day period to respect API limits ---
             data = yf.download(tickers=f"{security.ticker}.NS", period="7d", interval="1m", auto_adjust=False, progress=False)
 
             if data.empty:
+                if not is_bulk:
+                    self.stdout.write(self.style.WARNING("No intraday data found for this ticker. It may not be available from the source."))
                 return
 
             for index, row in data.iterrows():
@@ -48,6 +51,13 @@ class Command(BaseCommand):
                         'volume': row['Volume']
                     }
                 )
-        except Exception:
-            # Some tickers might not have intraday data, or other API errors can occur. Silently continue.
-            pass
+            if not is_bulk:
+                self.stdout.write(self.style.SUCCESS(f"Successfully stored {len(data)} intraday data points."))
+
+        except Exception as e:
+            if not is_bulk:
+                # If running for a single ticker, show the error.
+                raise CommandError(f"An error occurred while fetching intraday data for {security.ticker}. Error: {e}")
+            else:
+                # If running in bulk, silently continue.
+                pass

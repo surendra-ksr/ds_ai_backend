@@ -1,7 +1,7 @@
 import requests
 from django.core.management.base import BaseCommand, CommandError
-from apps.mutual_funds.models import MutualFundHouse, MutualFundScheme
-from apps.core.models import Category
+from mutual_funds.models import MutualFundHouse, MutualFundScheme
+from core.models import Category
 
 AMFI_URL = "https://www.amfiindia.com/spages/NAVAll.txt"
 

@@ -1,24 +1,19 @@
-# E:/Repos/ds_ai_backend/config/settings.py
+# E:/Repos/ds_ai_backend/config/settings/base.py
 
 import os
 from pathlib import Path
 from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
-BASE_DIR = Path(__file__).resolve().parent.parent
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
-# Load environment variables from a .env file
+# Load environment variables from a .env file in the project root
 load_dotenv(BASE_DIR / '.env')
-
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-default-key-for-dev')
-
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
 
 ALLOWED_HOSTS = []
 
 # Application definition
+# Using direct app names as the 'apps' directory will be added to the Python path.
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -32,11 +27,11 @@ INSTALLED_APPS = [
     'django_apscheduler',
 
     # Local Apps
-    'apps.core',
-    'apps.securities',
-    'apps.mutual_funds',
-    'apps.analysis',
-    'apps.users',
+    'core',
+    'securities',
+    'mutual_funds',
+    'analysis',
+    'users',
 ]
 
 MIDDLEWARE = [
@@ -54,7 +49,7 @@ ROOT_URLCONF = 'config.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [BASE_DIR / 'templates'],  # A project-level templates directory
+        'DIRS': [BASE_DIR / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -70,21 +65,19 @@ TEMPLATES = [
 WSGI_APPLICATION = 'config.wsgi.application'
 
 # Database
-# https://docs.djangoproject.com/en/4.1/ref/settings/#databases
-# Example for PostgreSQL using an environment variable
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': 'ds_ai_backend_db',
-        'USER': 'your_db_user',
-        'PASSWORD': 'your_db_password',
+        'USER': 'postgres',
+        'PASSWORD': os.environ.get('LOCAL_DB_PASSWORD'),
         'HOST': 'localhost',
         'PORT': '5432',
     }
 }
 
+
 # Password validation
-# https://docs.djangoproject.com/en/4.1/ref/settings/#auth-password-validators
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
     {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
@@ -93,16 +86,13 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 # Internationalization
-# https://docs.djangoproject.com/en/4.1/topics/i18n/
 LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'UTC'
 USE_I18N = True
 USE_TZ = True
 
 # Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/4.1/howto/static-files/
 STATIC_URL = 'static/'
 
 # Default primary key field type
-# https://docs.djangoproject.com/en/4.1/ref/settings/#default-auto-field
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

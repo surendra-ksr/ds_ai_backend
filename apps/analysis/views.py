@@ -1,7 +1,7 @@
 from rest_framework.generics import ListAPIView
 from .models import Prediction
 from .serializers import PredictionSerializer
-from apps.securities.models import Security
+from securities.models import Security
 
 class PredictionListView(ListAPIView):
     """

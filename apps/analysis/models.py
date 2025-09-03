@@ -1,6 +1,6 @@
 from django.db import models
-from apps.core.models import BaseModel
-from apps.securities.models import Security
+from core.models import BaseModel
+from securities.models import Security
 
 class Prediction(BaseModel):
     MODEL_CHOICES = [

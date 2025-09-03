@@ -4,8 +4,8 @@ from django.core.management.base import BaseCommand, CommandError
 from sklearn.preprocessing import MinMaxScaler
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, Dropout
-from apps.securities.models import Security, SecurityPrice
-from apps.analysis.models import Prediction
+from securities.models import Security, SecurityPrice
+from analysis.models import Prediction
 import datetime
 
 # Number of past days of data to use for predicting the next day

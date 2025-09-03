@@ -22,3 +22,6 @@ selenium
 
 # Utilities
 python-dotenv
+
+# Code Quality
+black

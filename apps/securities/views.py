@@ -10,15 +10,11 @@ class SecurityViewSet(mixins.ListModelMixin,
                       viewsets.GenericViewSet):
     """
     A ViewSet for listing and retrieving securities.
-    
-    - `list`: Returns a list of all securities with basic information.
-    - `retrieve`: Returns detailed information for a single security, including prices and news.
     """
     queryset = Security.objects.all()
-    lookup_field = 'ticker' # Use the ticker symbol in the URL (e.g., /api/securities/RELIANCE/)
+    lookup_field = 'ticker'
 
     def get_serializer_class(self):
-        """Return different serializers for list and retrieve actions."""
         if self.action == 'list':
             return SecurityListSerializer
         return SecurityDetailSerializer
@@ -28,6 +24,5 @@ class SecurityViewSet(mixins.ListModelMixin,
 class SecurityDetailView(TemplateView):
     """
     Renders the main detail page for a single security.
-    The data is fetched client-side via the API.
     """
     template_name = "securities/security_detail.html"

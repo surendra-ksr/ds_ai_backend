@@ -1,5 +1,9 @@
 from rest_framework import serializers
 from .models import MutualFundHouse, MutualFundScheme, MutualFundNAV
+from core.models import Category
+
+class CategorySerializer(serializers.StringRelatedField):
+    pass
 
 class MutualFundHouseSerializer(serializers.ModelSerializer):
     class Meta:
@@ -14,14 +18,16 @@ class MutualFundNAVSerializer(serializers.ModelSerializer):
 class MutualFundSchemeDetailSerializer(serializers.ModelSerializer):
     fund_house = MutualFundHouseSerializer(read_only=True)
     navs = MutualFundNAVSerializer(many=True, read_only=True)
+    categories = CategorySerializer(many=True, read_only=True)
 
     class Meta:
         model = MutualFundScheme
-        fields = ['scheme_code', 'name', 'category', 'isin', 'fund_house', 'navs']
+        fields = ['scheme_code', 'name', 'isin', 'fund_house', 'categories', 'navs']
 
 class MutualFundSchemeListSerializer(serializers.ModelSerializer):
     fund_house = serializers.StringRelatedField()
+    categories = CategorySerializer(many=True, read_only=True)
 
     class Meta:
         model = MutualFundScheme
-        fields = ['scheme_code', 'name', 'category', 'fund_house']
+        fields = ['scheme_code', 'name', 'fund_house', 'categories']

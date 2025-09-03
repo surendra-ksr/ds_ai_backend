@@ -1,5 +1,9 @@
 from rest_framework import serializers
 from .models import Security, SecurityPrice, NewsArticle, Exchange
+from core.models import Category
+
+class CategorySerializer(serializers.StringRelatedField):
+    pass
 
 class ExchangeSerializer(serializers.ModelSerializer):
     class Meta:
@@ -21,14 +25,17 @@ class NewsArticleSerializer(serializers.ModelSerializer):
 
 class SecurityDetailSerializer(serializers.ModelSerializer):
     exchange = ExchangeSerializer(read_only=True)
+    categories = CategorySerializer(many=True, read_only=True)
     prices = SecurityPriceSerializer(many=True, read_only=True)
     news_articles = NewsArticleSerializer(many=True, read_only=True)
 
     class Meta:
         model = Security
-        fields = ['ticker', 'name', 'sector', 'industry', 'exchange', 'prices', 'news_articles']
+        fields = ['ticker', 'name', 'exchange', 'categories', 'prices', 'news_articles']
 
 class SecurityListSerializer(serializers.ModelSerializer):
+    categories = CategorySerializer(many=True, read_only=True)
+
     class Meta:
         model = Security
-        fields = ['ticker', 'name', 'sector', 'industry']
+        fields = ['ticker', 'name', 'categories']

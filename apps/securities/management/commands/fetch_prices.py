@@ -1,8 +1,8 @@
 import yfinance as yf
 from django.core.management.base import BaseCommand, CommandError
-from apps.securities.models import Security, Exchange, SecurityPrice
-from apps.core.models import Category
-from apps.securities.data.nifty_500_tickers import NIFTY_50, NIFTY_NEXT_50, MAJOR_STOCKS
+from securities.models import Security, Exchange, SecurityPrice
+from core.models import Category
+from securities.data.nifty_500_tickers import NIFTY_50, NIFTY_NEXT_50, MAJOR_STOCKS
 
 class Command(BaseCommand):
     help = 'Fetches historical OHLCV data for stocks. Can fetch specified tickers or all major stocks.'

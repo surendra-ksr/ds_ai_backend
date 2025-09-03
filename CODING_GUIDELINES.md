@@ -8,55 +8,41 @@ This document outlines the architectural principles and coding standards to be f
 
 **The Golden Rule: Decouple Configuration from Code.**
 
-- **Environment-Specific Settings**: The project MUST use a `base.py`, `dev.py`, and `prod.py` structure.
-- **No Hardcoded Defaults**: The `DJANGO_SETTINGS_MODULE` environment variable **MUST NOT** be hardcoded in any application file.
-- **Secrets and Environment Variables**: All secrets and environment-specific values MUST be loaded from environment variables.
+- **Environment-Specific Settings**: The project MUST use a `config/settings/` package containing `base.py`, `dev.py`, and `prod.py`.
+- **Secrets and Environment Variables**: All secrets (API keys, `SECRET_KEY`) and environment-specific values MUST be loaded from environment variables (e.g., via a `.env` file).
+- **Entry-Point Configuration**: The `DJANGO_SETTINGS_MODULE` environment variable is set in the project's entry points (`manage.py`, `wsgi.py`, `asgi.py`) and defaults to the `dev` environment.
 
 ---
 
-## 2. Core Software Design Principles (SOLID)
+## 2. Project Architecture and Structure
 
-We adhere to the SOLID principles to guide our software design.
+- **Application Source Root**: The `apps/` directory is the primary source root for all local Django applications. It is added to the `PYTHONPATH` by the project's entry points.
+- **Direct Application Imports**: All internal application imports MUST be direct. For example, to import a model from the `securities` app, use `from securities.models import Security`, NOT `from apps.securities.models import Security`.
+- **`INSTALLED_APPS` Naming**: Consistent with the direct import style, apps MUST be registered in `settings/base.py` using their direct name (e.g., `'securities'`, not `'apps.securities'`).
+- **Each App is a Feature**: Each Django app should represent a distinct feature or bounded context (e.g., `users`, `securities`, `analysis`).
+- **Required App Structure**: Every app MUST contain a `migrations` package with an `__init__.py` file inside it, even if the app has no models. This is required for Django's discovery mechanism.
 
 ---
 
-## 3. Project Architecture and Structure
+## 3. The API as a Contract
 
-- **Strict Decoupling**: The frontend and backend are two separate applications. There **MUST NOT** be any direct dependency or file import between them.
 - **API-First Design**: The backend API is the contract. It should be designed, built, and validated before the frontend UI that consumes it.
-- **Each App is a Feature**: Each Django app should represent a distinct feature or bounded context (e.g., `users`, `music`, `listening_sessions`).
+- **Language-Agnostic Data**: The API communicates using JSON.
 
 ---
 
-## 4. The API as a Contract
-
-- **Language-Agnostic Data**: The API communicates using JSON, a language-agnostic format. The frontend **MUST NOT** have any knowledge of the backend's internal data structures.
-- **Frontend-Specific Types**: The frontend is responsible for defining its own TypeScript types and interfaces that model the expected JSON structure of the API responses.
-
----
-
-## 5. Backend (Django)
+## 4. Backend (Django)
 
 ### Database
 - **Rich Data Models**: Models should accurately represent the application's domain.
-- **Explicit Relationships**: Use `ForeignKey` and `ManyToManyField` with `through` models where appropriate.
+- **Explicit Relationships**: Use `ForeignKey` and `ManyToManyField` where appropriate.
 
 ### API (Django REST Framework)
 - **Use ViewSets**: For standard CRUD operations, `ModelViewSet` provides a clean and conventional way to build endpoints.
-- **Permissions**: Always apply appropriate permissions (`IsAuthenticated`) to secure endpoints.
+- **Permissions**: Always apply appropriate permissions to secure endpoints.
 
 ---
 
-## 6. Frontend (React)
-
-- **Component-Based Architecture**: Break down the UI into small, reusable components.
-- **Absolute Import Paths**: **MUST** use absolute paths (e.g., `from 'src/features/auth'`) instead of deep relative paths (`from '../../auth'`). This is configured in `tsconfig.json` and makes the codebase more maintainable.
-- **Centralized State Management**: Use `zustand` for global state.
-- **Custom Hooks**: Encapsulate complex logic and side effects into custom hooks.
-- **API Client**: All API communication should go through a centralized `apiClient` that uses an interceptor to automatically attach the authentication token.
-
----
-
-## 7. Testing Guidelines
+## 5. Testing Guidelines
 
 - **Self-Contained Tests**: Tests **MUST** be independent and reliable. Each test should create all of its own required data.

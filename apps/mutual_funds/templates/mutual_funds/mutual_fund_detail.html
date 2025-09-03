@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mutual Fund Analysis</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; background-color: #f4f4f9; color: #333; }
+        header { background-color: #fff; padding: 1em 2em; border-bottom: 1px solid #ddd; }
+        main { padding: 2em; }
+        .container { max-width: 1200px; margin: auto; }
+        .chart-container { background-color: #fff; padding: 2em; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@^4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@^3"></script>
+</head>
+<body>
+
+    <header>
+        <div class="container">
+            <h1 id="scheme-name">Loading...</h1>
+        </div>
+    </header>
+
+    <main class="container">
+        <div class="chart-container">
+            <canvas id="navChart"></canvas>
+        </div>
+    </main>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const schemeCode = window.location.pathname.split('/').filter(Boolean).pop();
+            const schemeNameEl = document.getElementById('scheme-name');
+            const ctx = document.getElementById('navChart').getContext('2d');
+
+            // Fetch data from our API
+            fetch(`/api/mutual-funds/${schemeCode}/`)
+                .then(response => response.json())
+                .then(data => {
+                    schemeNameEl.textContent = `${data.name}`;
+
+                    // Prepare data for Chart.js
+                    const navData = data.navs.map(n => ({ x: new Date(n.date).valueOf(), y: parseFloat(n.nav) })).sort((a, b) => a.x - b.x);
+
+                    // Create the chart
+                    new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            datasets: [
+                                {
+                                    label: 'Net Asset Value (NAV)',
+                                    data: navData,
+                                    borderColor: 'rgba(75, 192, 192, 1)',
+                                    borderWidth: 2,
+                                    pointRadius: 0,
+                                    fill: true,
+                                    backgroundColor: 'rgba(75, 192, 192, 0.2)'
+                                }
+                            ]
+                        },
+                        options: {
+                            scales: {
+                                x: {
+                                    type: 'time',
+                                    time: { unit: 'day' }
+                                },
+                                y: {
+                                    beginAtZero: false,
+                                    ticks: { callback: function(value) { return '₹' + value; } }
+                                }
+                            }
+                        }
+                    });
+                })
+                .catch(error => {
+                    console.error('Error fetching mutual fund data:', error);
+                    schemeNameEl.textContent = "Could not load mutual fund data.";
+                });
+        });
+    </script>
+
+</body>
+</html>

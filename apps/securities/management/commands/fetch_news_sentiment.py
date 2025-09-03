@@ -2,7 +2,7 @@ import os
 import requests
 import spacy
 from django.core.management.base import BaseCommand, CommandError
-from securities.models import Security, NewsArticle
+from apps.securities.models import Security, NewsArticle
 from spacy.lang.en.stop_words import STOP_WORDS
 from string import punctuation
 from collections import Counter

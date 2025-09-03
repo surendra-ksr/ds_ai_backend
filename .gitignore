@@ -1,1 +1,4 @@
 /.env
+/.idea/.gitignore
+/.idea/data_source_mapping.xml
+/.idea/dataSources.xml

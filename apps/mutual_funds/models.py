@@ -1,5 +1,5 @@
 from django.db import models
-from core.models import BaseModel, Category
+from apps.core.models import BaseModel, Category
 
 class MutualFundHouse(BaseModel):
     name = models.CharField(max_length=255, unique=True, help_text="e.g., 'HDFC Mutual Fund'")

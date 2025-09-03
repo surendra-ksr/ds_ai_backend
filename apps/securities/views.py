@@ -1,4 +1,4 @@
-from django.views.generic import TemplateView
+from django.views.generic import TemplateView, ListView
 from rest_framework import viewsets, mixins
 from .models import Security
 from .serializers import SecurityListSerializer, SecurityDetailSerializer
@@ -20,6 +20,13 @@ class SecurityViewSet(mixins.ListModelMixin,
         return SecurityDetailSerializer
 
 # --- Frontend Template Views ---
+
+class SecurityListView(ListView):
+    """
+    Renders a homepage with a list of all securities.
+    """
+    model = Security
+    template_name = "securities/security_list.html"
 
 class SecurityDetailView(TemplateView):
     """

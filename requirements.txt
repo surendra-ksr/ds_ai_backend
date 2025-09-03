@@ -7,6 +7,7 @@ redis
 django-apscheduler
 
 # Data & ML
+yfinance
 pandas
 numpy
 pandas-ta
@@ -22,6 +23,3 @@ selenium
 
 # Utilities
 python-dotenv
-
-# Code Quality
-black

@@ -1,6 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import SecurityViewSet, SecurityDetailView
+from .views import SecurityViewSet, SecurityDetailView, SecurityListView
 
 # API Router
 router = DefaultRouter()
@@ -11,4 +11,5 @@ router.register(r'securities', SecurityViewSet, basename='security')
 urlpatterns = [
     path('api/', include(router.urls)),
     path('securities/<str:ticker>/', SecurityDetailView.as_view(), name='security-detail'),
+    path('', SecurityListView.as_view(), name='security-list'), # Homepage
 ]

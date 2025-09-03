@@ -1,5 +1,5 @@
 from django.db import models
-from core.models import BaseModel, Category
+from apps.core.models import BaseModel, Category
 
 class Exchange(BaseModel):
     name = models.CharField(max_length=50, unique=True, help_text="e.g., 'NSE', 'BSE'")

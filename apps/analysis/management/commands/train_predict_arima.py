@@ -1,8 +1,8 @@
 import pandas as pd
 from django.core.management.base import BaseCommand, CommandError
 from statsmodels.tsa.arima.model import ARIMA
-from securities.models import Security, SecurityPrice
-from analysis.models import Prediction
+from apps.securities.models import Security, SecurityPrice
+from apps.analysis.models import Prediction
 import datetime
 
 class Command(BaseCommand):

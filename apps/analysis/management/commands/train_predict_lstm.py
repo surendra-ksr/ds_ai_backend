@@ -4,8 +4,8 @@ from django.core.management.base import BaseCommand, CommandError
 from sklearn.preprocessing import MinMaxScaler
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, Dropout
-from securities.models import Security, SecurityPrice
-from analysis.models import Prediction
+from apps.securities.models import Security, SecurityPrice
+from apps.analysis.models import Prediction
 import datetime
 
 # Number of past days of data to use for predicting the next day
@@ -84,8 +84,8 @@ class Command(BaseCommand):
 
         # Inverse transform to get actual price values
         # We need to create a dummy array with the same shape as the scaler expects
-dummy_array = np.zeros((len(future_predictions), df.shape[1]))
-dummy_array[:, 0] = future_predictions
+        dummy_array = np.zeros((len(future_predictions), df.shape[1]))
+        dummy_array[:, 0] = future_predictions
         actual_predictions = scaler.inverse_transform(dummy_array)[:, 0]
 
         # 7. Saving Results

@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from .models import MutualFundHouse, MutualFundScheme, MutualFundNAV
-from core.models import Category
+from apps.core.models import Category
 
 class CategorySerializer(serializers.StringRelatedField):
     pass

@@ -1,5 +1,5 @@
 from django.core.management.base import BaseCommand
-from core.models import Category
+from apps.core.models import Category
 
 # A comprehensive list of categories based on user requirements
 CATEGORIES = [

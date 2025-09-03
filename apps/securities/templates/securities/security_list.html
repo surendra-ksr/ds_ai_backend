@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>All Securities | Dalal Street AI</title>
+    <style>
+        body { font-family: sans-serif; margin: 2em; }
+        ul { list-style-type: none; padding: 0; }
+        li { margin: 0.5em 0; }
+        a { text-decoration: none; color: #007bff; }
+        a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+
+    <h1>Available Securities for Analysis</h1>
+
+    <ul>
+        {% for security in object_list %}
+            <li>
+                <a href="{% url 'security-detail' ticker=security.ticker %}">
+                    {{ security.name }} ({{ security.ticker }})
+                </a>
+            </li>
+        {% empty %}
+            <li>No securities found in the database. Run the `fetch_prices --all-major` command.</li>
+        {% endfor %}
+    </ul>
+
+</body>
+</html>

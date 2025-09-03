@@ -1,7 +1,7 @@
 import requests
 import datetime
 from django.core.management.base import BaseCommand, CommandError
-from mutual_funds.models import MutualFundScheme, MutualFundNAV
+from apps.mutual_funds.models import MutualFundScheme, MutualFundNAV
 
 # This URL is a common endpoint for fetching historical NAV data from AMFI.
 AMFI_HISTORY_URL = "https://portal.amfiindia.com/DownloadNAVHistoryReport_Po.aspx"

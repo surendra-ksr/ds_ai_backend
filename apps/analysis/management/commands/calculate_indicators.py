@@ -2,7 +2,7 @@ import pandas as pd
 import pandas_ta as ta
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
-from securities.models import Security, SecurityPrice
+from apps.securities.models import Security, SecurityPrice
 
 class Command(BaseCommand):
     help = 'Calculates technical indicators for specified securities or all securities.'

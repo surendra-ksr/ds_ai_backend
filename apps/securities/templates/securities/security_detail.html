@@ -4,87 +4,148 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Stock Analysis</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; background-color: #f4f4f9; color: #333; }
+        header { background-color: #fff; padding: 1em 2em; border-bottom: 1px solid #ddd; }
+        main { padding: 2em; }
+        h1, h2 { color: #1a1a1a; }
+        .container { max-width: 1200px; margin: auto; }
+        .chart-container { background-color: #fff; padding: 2em; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 2em; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2em; }
+        .card { background-color: #fff; padding: 2em; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .news-item { border-bottom: 1px solid #eee; padding: 1em 0; }
+        .news-item:last-child { border-bottom: none; }
+        .news-item a { text-decoration: none; color: #007bff; font-weight: bold; }
+        .prediction-item { display: flex; justify-content: space-between; padding: 0.5em 0; }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@^4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@^3"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial@^0.2.0"></script>
 </head>
 <body>
 
-    <h1 id="security-name">Loading...</h1>
+    <header>
+        <div class="container">
+            <h1 id="security-name">Loading...</h1>
+        </div>
+    </header>
 
-    <div style="width: 80%; margin: auto;">
-        <canvas id="priceChart"></canvas>
-    </div>
+    <main class="container">
+        <div class="chart-container">
+            <canvas id="priceChart"></canvas>
+        </div>
+
+        <div class="grid">
+            <div class="card">
+                <h2>Model Predictions</h2>
+                <div id="predictions-list"></div>
+            </div>
+            <div class="card">
+                <h2>Recent News</h2>
+                <div id="news-list"></div>
+            </div>
+        </div>
+    </main>
 
     <script>
         document.addEventListener('DOMContentLoaded', function () {
             const ticker = window.location.pathname.split('/').filter(Boolean).pop();
             const securityNameEl = document.getElementById('security-name');
+            const newsListEl = document.getElementById('news-list');
+            const predictionsListEl = document.getElementById('predictions-list');
             const ctx = document.getElementById('priceChart').getContext('2d');
 
-            // Fetch data from our API
+            // --- 1. Fetch Main Security Data (Prices, News) ---
             fetch(`/api/securities/${ticker}/`)
                 .then(response => response.json())
                 .then(data => {
                     securityNameEl.textContent = `${data.name} (${data.ticker})`;
 
-                    // Prepare data for Chart.js
-                    const labels = data.prices.map(p => p.date);
-                    const priceData = data.prices.map(p => ({ x: p.date, o: p.open, h: p.high, l: p.low, c: p.close }));
-                    const sma20Data = data.prices.map(p => ({ x: p.date, y: p.sma_20 }));
-                    const sma50Data = data.prices.map(p => ({ x: p.date, y: p.sma_50 }));
+                    // Render News
+                    if (data.news_articles && data.news_articles.length > 0) {
+                        let newsHtml = '';
+                        data.news_articles.slice(0, 5).forEach(article => {
+                            newsHtml += `
+                                <div class="news-item">
+                                    <a href="${article.url}" target="_blank">${article.headline}</a>
+                                    <p>${article.summary}</p>
+                                    <small>Source: ${article.source} | Sentiment: ${article.sentiment_score.toFixed(2)}</small>
+                                </div>`;
+                        });
+                        newsListEl.innerHTML = newsHtml;
+                    } else {
+                        newsListEl.innerHTML = '<p>No recent news found.</p>';
+                    }
 
-                    // Create the chart
-                    new Chart(ctx, {
-                        type: 'bar', // We will use a bar chart for candlestick representation
-                        data: {
-                            labels: labels,
-                            datasets: [
-                                {
-                                    label: 'Price',
-                                    data: priceData,
-                                    backgroundColor: 'rgba(255, 99, 132, 0.5)',
-                                    borderColor: 'rgba(255, 99, 132, 1)',
-                                    borderWidth: 1
-                                },
-                                {
-                                    label: 'SMA 20',
-                                    type: 'line',
-                                    data: sma20Data,
-                                    borderColor: 'rgba(54, 162, 235, 1)',
-                                    borderWidth: 2,
-                                    fill: false,
-                                    pointRadius: 0
-                                },
-                                {
-                                    label: 'SMA 50',
-                                    type: 'line',
-                                    data: sma50Data,
-                                    borderColor: 'rgba(255, 206, 86, 1)',
-                                    borderWidth: 2,
-                                    fill: false,
-                                    pointRadius: 0
-                                }
-                            ]
-                        },
-                        options: {
-                            scales: {
-                                x: {
-                                    type: 'time',
-                                    time: {
-                                        unit: 'day'
-                                    }
-                                },
-                                y: {
-                                    beginAtZero: false
-                                }
-                            }
-                        }
-                    });
+                    // Render Chart
+                    renderChart(data.prices);
                 })
                 .catch(error => {
                     console.error('Error fetching security data:', error);
-                    securityNameEl.textContent = "Could not load data.";
+                    securityNameEl.textContent = "Could not load security data.";
                 });
+
+            // --- 2. Fetch Prediction Data ---
+            fetch(`/api/analysis/${ticker}/predictions/`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data && data.length > 0) {
+                        let predictionsHtml = '';
+                        data.forEach(pred => {
+                            predictionsHtml += `
+                                <div class="prediction-item">
+                                    <span>${pred.prediction_date} (${pred.model_name})</span>
+                                    <strong>${parseFloat(pred.predicted_value).toFixed(2)}</strong>
+                                </div>`;
+                        });
+                        predictionsListEl.innerHTML = predictionsHtml;
+                    } else {
+                        predictionsListEl.innerHTML = '<p>No predictions available.</p>';
+                    }
+                })
+                .catch(error => console.error('Error fetching predictions:', error));
+
+            // --- Chart Rendering Function ---
+            function renderChart(prices) {
+                const ohlcData = prices.map(p => ({
+                    x: new Date(p.date).valueOf(),
+                    o: p.open,
+                    h: p.high,
+                    l: p.low,
+                    c: p.close
+                })).sort((a, b) => a.x - b.x);
+
+                const sma50Data = prices.map(p => ({ x: new Date(p.date).valueOf(), y: p.sma_50 })).sort((a, b) => a.x - b.x);
+
+                new Chart(ctx, {
+                    type: 'candlestick',
+                    data: {
+                        datasets: [
+                            {
+                                label: 'Price (OHLC)',
+                                data: ohlcData,
+                            },
+                            {
+                                label: 'SMA 50',
+                                type: 'line',
+                                data: sma50Data,
+                                borderColor: 'rgba(255, 159, 64, 1)',
+                                borderWidth: 2,
+                                pointRadius: 0,
+                                fill: false
+                            }
+                        ]
+                    },
+                    options: {
+                        scales: {
+                            x: {
+                                type: 'time',
+                                time: { unit: 'day' }
+                            }
+                        }
+                    }
+                });
+            }
         });
     </script>
 

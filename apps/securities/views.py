@@ -28,6 +28,14 @@ from .serializers import (
 # Define the directory where trained models are stored
 MODEL_DIR = Path(settings.BASE_DIR) / "apps" / "analysis" / "models"
 
+# --- Helper function for RSI calculation ---
+def _calculate_rsi(data, window=14):
+    delta = data.diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=window).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=window).mean()
+    rs = gain / loss
+    return 100 - (100 / (1 + rs))
+
 # --- API Views ---
 
 class SecurityViewSet(mixins.ListModelMixin,
@@ -43,18 +51,28 @@ class SecurityViewSet(mixins.ListModelMixin,
 
     @action(detail=True, methods=['get'])
     def analysis(self, request, ticker=None):
-        # Import pandas_ta locally. This is critical to avoid startup errors on Windows
-        # where this library can cause a ModuleNotFoundError for 'posix'.
-        import pandas_ta as ta
-
         security = self.get_object()
         prices = SecurityPrice.objects.filter(security=security).order_by('date')
         if not prices.exists(): return Response({"detail": "No historical price data found."}, status=404)
+        
         df = pd.DataFrame.from_records(prices.values('date', 'open', 'high', 'low', 'close', 'volume'))
         df.set_index('date', inplace=True)
-        df.ta.sma(length=20, append=True); df.ta.sma(length=50, append=True); df.ta.rsi(length=14, append=True); df.ta.macd(append=True)
+
+        # --- Manual Technical Indicator Calculation using Pandas ---
+        df['SMA_20'] = df['close'].rolling(window=20).mean()
+        df['SMA_50'] = df['close'].rolling(window=50).mean()
+        df['RSI_14'] = _calculate_rsi(df['close'], window=14)
+        
+        ema_12 = df['close'].ewm(span=12, adjust=False).mean()
+        ema_26 = df['close'].ewm(span=26, adjust=False).mean()
+        df['MACD_12_26_9'] = ema_12 - ema_26
+        df['MACDs_12_26_9'] = df['MACD_12_26_9'].ewm(span=9, adjust=False).mean()
+        df['MACDh_12_26_9'] = df['MACD_12_26_9'] - df['MACDs_12_26_9']
+
         df.reset_index(inplace=True)
-        return Response(df.where(pd.notnull(df), None).to_dict(orient='records'))
+        # Replace numpy.nan with Python's None for JSON compatibility
+        df = df.replace({np.nan: None})
+        return Response(df.to_dict(orient='records'))
 
     @action(detail=True, methods=['get'])
     def news(self, request, ticker=None):
@@ -78,7 +96,12 @@ class SecurityViewSet(mixins.ListModelMixin,
             predicted_value = forecast.predicted_mean.iloc[0]
             last_price = SecurityPrice.objects.filter(security=security).latest('date').close
             trend = "Up" if predicted_value > last_price else "Down" if predicted_value < last_price else "Neutral"
-            return Response({'predicted_value': float(predicted_value), 'trend': trend, 'model': 'ARIMA'})
+            return Response({
+                'predicted_value': float(predicted_value), 
+                'last_close': float(last_price),
+                'trend': trend, 
+                'model': 'ARIMA'
+            })
         except Exception as e: return Response({"detail": str(e)}, status=500)
 
     @action(detail=True, methods=['get'])
@@ -99,7 +122,12 @@ class SecurityViewSet(mixins.ListModelMixin,
             predicted_price = scaler.inverse_transform(dummy_array)[0, target_col_index]
             last_close = df['close'].iloc[-1]
             trend = "Up" if predicted_price > last_close else "Down" if predicted_price < last_close else "Neutral"
-            return Response({'predicted_value': float(predicted_price), 'trend': trend, 'model': 'LSTM'})
+            return Response({
+                'predicted_value': float(predicted_price), 
+                'last_close': float(last_close),
+                'trend': trend, 
+                'model': 'LSTM'
+            })
         except Exception as e: return Response({"detail": str(e)}, status=500)
 
 class SecurityPriceIntradayListView(generics.ListAPIView):
